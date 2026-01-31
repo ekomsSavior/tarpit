@@ -1,0 +1,32 @@
+{
+  "keywords": [
+    "viral",
+    "trending",
+    "challenge",
+    "dance",
+    "music",
+    "tiktok",
+    "reels",
+    "shorts",
+    "fyp",
+    "hashtag",
+    "ai",
+    "dataset",
+    "training",
+    "machine learning"
+  ],
+  "bot_types": [
+    "tiktok",
+    "social",
+    "ai_trainer"
+  ],
+  "content_themes": [
+    "viral",
+    "technical"
+  ],
+  "density_multiplier": 2.0,
+  "recursion_depth": 5,
+  "hidden_traps": true,
+  "embed_tracking": true,
+  "meta_tag_injection": true
+}
