@@ -1,8 +1,7 @@
-## TARPIT
-#  AI Scraper TarPit 
-
 <p align="center">
 
+## TARPIT
+#  AI Scraper TarPit 
 
   <img src="https://img.shields.io/badge/ek0ms%20savi0r-yellow.svg" alt="ek0ms_savi0r">
  
