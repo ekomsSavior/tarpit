@@ -321,11 +321,10 @@ python3 tarpit.py --wizard
 
 <p align="center">
   <strong>by ek0ms savi0r</strong><br>
-  we are legion.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Certified%20Ethical%20Hacker-blueviolet" alt="Hack The Planet">
 </p>
 
-
+---
