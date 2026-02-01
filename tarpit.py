@@ -13,12 +13,9 @@ import threading
 import json
 import sqlite3
 import argparse
-import signal
 import mimetypes
 import zipfile
 import io
-import base64
-import uuid
 import tempfile
 import csv
 import xml.etree.ElementTree as ET
@@ -30,9 +27,6 @@ from dataclasses import dataclass, asdict
 import logging
 from collections import Counter, defaultdict
 import re
-import textwrap
-import math
-import string
 
 # Configure logging
 logging.basicConfig(
@@ -44,6 +38,222 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# TARGETED CONTENT GENERATOR (MISSING CLASS)
+# ============================================================================
+
+class TargetedContentGenerator:
+    """Generate content targeted to specific bot interests"""
+    
+    def __init__(self, config):
+        self.config = config
+        self.keyword_density = {}
+        self.setup_content_templates()
+        self.setup_word_banks()
+    
+    def setup_content_templates(self):
+        """Setup content templates for different themes"""
+        self.templates = {
+            "viral": [
+                "BREAKING: {keyword} Takes Internet By Storm!",
+                "You Won't Believe This {keyword} Challenge!",
+                "{keyword} Goes Viral: Here's What Happened",
+                "The {keyword} Trend Everyone Is Talking About"
+            ],
+            "technical": [
+                "Comprehensive Analysis of {keyword} Implementation",
+                "{keyword}: A Technical Deep Dive",
+                "Optimizing {keyword} Performance Metrics",
+                "{keyword} Architecture and Best Practices"
+            ],
+            "news": [
+                "Exclusive Report: {keyword} Developments",
+                "{keyword} Makes Headlines Worldwide",
+                "Inside the {keyword} Story",
+                "{keyword}: What You Need to Know"
+            ],
+            "product": [
+                "Amazing {keyword} Deal Just Dropped!",
+                "Review: The Best {keyword} on the Market",
+                "{keyword} at Unbeatable Price",
+                "Limited Time Offer on {keyword}"
+            ]
+        }
+    
+    def setup_word_banks(self):
+        """Setup word banks for text generation"""
+        self.word_banks = {
+            "verbs": ["accelerate", "analyze", "build", "create", "design", "develop", 
+                     "engineer", "enhance", "evaluate", "expand", "generate", "implement",
+                     "improve", "innovate", "integrate", "launch", "optimize", "produce",
+                     "research", "transform", "update", "upgrade", "validate"],
+            
+            "adjectives": ["advanced", "agile", "automated", "cloud", "collaborative",
+                          "comprehensive", "cutting-edge", "data-driven", "digital",
+                          "disruptive", "dynamic", "efficient", "enterprise", "flexible",
+                          "innovative", "integrated", "intelligent", "interactive",
+                          "modern", "next-generation", "scalable", "secure", "smart",
+                          "sustainable", "transparent", "user-friendly"],
+            
+            "nouns": ["algorithm", "application", "architecture", "automation", "cloud",
+                     "collaboration", "community", "dashboard", "data", "deployment",
+                     "design", "development", "ecosystem", "framework", "infrastructure",
+                     "innovation", "integration", "interface", "marketplace", "methodology",
+                     "model", "network", "platform", "process", "product", "research",
+                     "solution", "strategy", "system", "technology", "tool", "transformation"],
+            
+            "connectors": ["according to", "additionally", "as a result", "consequently",
+                          "furthermore", "however", "in addition", "in conclusion",
+                          "in contrast", "in fact", "in summary", "moreover", "nevertheless",
+                          "on the other hand", "similarly", "therefore", "thus"]
+        }
+    
+    def generate_targeted_content(self, bot_type: str, seed_keyword: str = None) -> Dict:
+        """Generate content targeted to specific bot type"""
+        
+        # Select appropriate keywords based on bot type
+        if bot_type in ["tiktok", "social"]:
+            keywords = [seed_keyword] if seed_keyword else ["viral", "trend", "challenge", "dance"]
+            theme = "viral"
+        elif bot_type in ["news", "academic"]:
+            keywords = [seed_keyword] if seed_keyword else ["analysis", "report", "study", "findings"]
+            theme = "news"
+        elif bot_type == "shopping":
+            keywords = [seed_keyword] if seed_keyword else ["deal", "price", "buy", "discount"]
+            theme = "product"
+        else:
+            keywords = self.config.keywords
+            theme = random.choice(self.config.content_themes)
+        
+        # Generate content with high keyword density
+        title = self.generate_title(theme, keywords)
+        content = self.generate_body(theme, keywords)
+        
+        # Add bot-specific traps
+        traps = self.generate_bot_traps(bot_type, keywords)
+        
+        return {
+            "title": title,
+            "content": content,
+            "traps": traps,
+            "keywords": keywords,
+            "bot_type": bot_type,
+            "theme": theme,
+            "timestamp": datetime.now().isoformat(),
+            "content_hash": hashlib.md5((title + content).encode()).hexdigest()
+        }
+    
+    def generate_title(self, theme: str, keywords: List[str]) -> str:
+        """Generate targeted title"""
+        template = random.choice(self.templates.get(theme, self.templates["viral"]))
+        keyword = random.choice(keywords)
+        return template.format(keyword=keyword.title())
+    
+    def generate_sentence(self) -> str:
+        """Generate a random sentence"""
+        structures = [
+            "The {adj} {noun} {verb} the {adj} {noun}.",
+            "{adj} {noun} and {adj} {noun} {verb} {adj} solutions.",
+            "Our {adj} approach to {noun} {verb} unprecedented results.",
+            "The future of {noun} depends on {adj} {noun}.",
+            "{adj} {noun} platforms {verb} the {noun} ecosystem."
+        ]
+        
+        structure = random.choice(structures)
+        
+        # Fill in the blanks
+        while True:
+            try:
+                sentence = structure.format(
+                    adj=random.choice(self.word_banks["adjectives"]),
+                    noun=random.choice(self.word_banks["nouns"]),
+                    verb=random.choice(self.word_banks["verbs"])
+                )
+                return sentence.capitalize()
+            except KeyError:
+                # Try again if format fails
+                continue
+    
+    def generate_body(self, theme: str, keywords: List[str], paragraphs: int = 5) -> str:
+        """Generate body text with keyword stuffing"""
+        paragraphs_list = []
+        
+        for i in range(paragraphs):
+            # Create paragraph with keyword density
+            base_text = self.generate_paragraph()
+            
+            # Inject keywords
+            if random.random() > 0.3:  # 70% chance to inject keywords
+                injection_points = random.randint(1, 3)
+                for _ in range(injection_points):
+                    keyword = random.choice(keywords)
+                    position = random.randint(0, len(base_text.split()) // 2)
+                    words = base_text.split()
+                    words.insert(position, f"**{keyword}**")
+                    base_text = " ".join(words)
+            
+            paragraphs_list.append(base_text)
+        
+        return "\n\n".join(paragraphs_list)
+    
+    def generate_paragraph(self, sentences: int = None) -> str:
+        """Generate a paragraph of text"""
+        if sentences is None:
+            sentences = random.randint(3, 7)
+        
+        paragraph_sentences = []
+        for i in range(sentences):
+            sentence = self.generate_sentence()
+            
+            # Occasionally add a connector
+            if i > 0 and random.random() > 0.5:
+                connector = random.choice(self.word_banks["connectors"])
+                sentence = f"{connector.capitalize()}, {sentence[0].lower()}{sentence[1:]}"
+            
+            paragraph_sentences.append(sentence)
+        
+        return " ".join(paragraph_sentences)
+    
+    def generate_bot_traps(self, bot_type: str, keywords: List[str]) -> Dict:
+        """Generate hidden traps for bots"""
+        traps = {
+            "hidden_divs": [],
+            "meta_tags": [],
+            "json_ld": [],
+            "infinite_links": []
+        }
+        
+        # Hidden content with keywords
+        for i in range(random.randint(3, 7)):
+            trap_text = " ".join([random.choice(keywords) for _ in range(random.randint(5, 15))])
+            traps["hidden_divs"].append(
+                f'<div style="display:none;" data-bot-trap="{bot_type}">{trap_text}</div>'
+            )
+        
+        # Meta tags targeting bots
+        for keyword in keywords[:3]:
+            traps["meta_tags"].append(
+                f'<meta name="keywords" content="{keyword}, {random.choice(keywords)}, related">'
+            )
+        
+        # JSON-LD structured data (attracts certain crawlers)
+        if random.random() > 0.5:
+            traps["json_ld"].append({
+                "@context": "https://schema.org",
+                "@type": "Article",
+                "headline": f"Important {random.choice(keywords).title()} Information",
+                "keywords": ", ".join(keywords)
+            })
+        
+        # Infinite recursion links
+        base_path = f"/{bot_type}/content/"
+        for i in range(5):
+            traps["infinite_links"].append(
+                f'<a href="{base_path}{hashlib.md5(str(i).encode()).hexdigest()}" style="display:none;">More</a>'
+            )
+        
+        return traps
 
 # ============================================================================
 # FILE UPLOAD AND BAIT CONTENT MANAGEMENT
@@ -444,7 +654,7 @@ class InteractiveElementsGenerator:
             else:
                 form_html += f'<div><label>{label}:</label><br><input type="{field_type}" name="{field_name}" placeholder="{placeholder}" style="width:100%;padding:8px;margin:5px 0;"></div>\n'
         
-        submit_action = f"document.getElementById('{form_id}').innerHTML='<p style=\\'color:green;\\'>Thank you for submitting! Downloading {random.choice(keywords)} data...</p>'; setTimeout(() => window.location.href='/download/trap/{bot_type}.zip', 2000);"
+        submit_action = f"document.getElementById('{form_id}').innerHTML='<p style=\"color:green;\">Thank you for submitting! Downloading {random.choice(keywords)} data...</p>'; setTimeout(() => window.location.href='/download/trap/{bot_type}.zip', 2000);"
         form_html += f'<br><button onclick="{submit_action}" style="padding:10px 20px;background:#007bff;color:white;border:none;border-radius:5px;cursor:pointer;">Submit</button>\n'
         form_html += '</div>'
         
@@ -685,6 +895,24 @@ class ConfigManager:
             logger.info(f"Saved configuration to {self.config_file}")
         except Exception as e:
             logger.error(f"Failed to save config: {e}")
+    
+    def detect_bot_type(self, user_agent: str, path: str) -> str:
+        """Detect specific bot type from request"""
+        ua_lower = user_agent.lower()
+        path_lower = path.lower()
+        
+        for bot_type, signatures in self.bot_signatures.items():
+            # Check user agent patterns
+            for pattern in signatures["ua_patterns"]:
+                if pattern in ua_lower:
+                    return bot_type
+            
+            # Check path patterns
+            for pattern in signatures["crawl_patterns"]:
+                if pattern in path_lower:
+                    return bot_type
+        
+        return "generic"
 
 # ============================================================================
 # ENHANCED REQUEST HANDLER WITH INTERACTIVE ELEMENTS
@@ -1015,7 +1243,7 @@ All content is synthetic and does not represent real information.
                     <input type="file" id="fileInput" name="file" multiple style="display: none;">
                     <button type="button" onclick="document.getElementById('fileInput').click()" 
                             style="padding: 15px 30px; font-size: 16px; cursor: pointer;">
-                         Select Files
+                        📎 Select Files
                     </button>
                     <p>or drag and drop files here</p>
                     <div id="selectedFiles"></div>
@@ -1302,6 +1530,42 @@ All content is synthetic and does not represent real information.
         ])
         
         return '\n'.join(html_parts)
+    
+    def generate_deep_traps(self, bot_type: str, keywords: List[str]) -> List[str]:
+        """Generate deep traps for targeted bots"""
+        traps = []
+        
+        # Infinite comment section
+        traps.append('<div style="display:none;" id="infinite-comments">')
+        for i in range(20):
+            user = random.choice(["user", "viewer", "subscriber"])
+            comment = f"Great {random.choice(keywords)} content! More please."
+            traps.append(f'<div class="comment"><strong>{user}_{i}:</strong> {comment}</div>')
+        traps.append('</div>')
+        
+        # Fake API endpoints in JavaScript
+        traps.append('<script>')
+        traps.append('// Fake API endpoints for bots to discover')
+        for keyword in keywords[:3]:
+            traps.append(f'const {keyword}_api = "/api/v1/{keyword}/data.json";')
+        traps.append('</script>')
+        
+        # Hidden links to trap pages
+        traps.append('<div style="display:none;">')
+        for i in range(10):
+            traps.append(f'<a href="/trap/{bot_type}/page/{i}">Hidden Link {i}</a>')
+        traps.append('</div>')
+        
+        return traps
+    
+    def generate_recursive_iframe(self, bot_type: str) -> str:
+        """Generate recursive iframe for deep trapping"""
+        depth = self.config_manager.active_config.recursion_depth
+        if depth <= 0:
+            return ""
+        
+        src = f"/deep-trap/{bot_type}/{random.randint(1000, 9999)}"
+        return f'<iframe src="{src}" style="display:none;"></iframe>'
 
 # ============================================================================
 # ENHANCED MAIN APPLICATION
@@ -1512,18 +1776,49 @@ def enhanced_configuration_wizard():
     return config
 
 # ============================================================================
+# QUICK START WITH DEFAULT CONFIG
+# ============================================================================
+
+def create_default_config():
+    """Create a default configuration file"""
+    default_config = {
+        "keywords": ["viral", "trending", "challenge", "dance", "music", "ai", "dataset", "training"],
+        "bot_types": ["tiktok", "ai_trainer", "social"],
+        "content_themes": ["viral", "technical"],
+        "density_multiplier": 2.0,
+        "recursion_depth": 5,
+        "hidden_traps": True,
+        "embed_tracking": True,
+        "meta_tag_injection": True,
+        "interactive_elements": True,
+        "bait_files_enabled": True,
+        "download_traps": True,
+        "user_uploads_enabled": False
+    }
+    
+    with open("bot_config.json", 'w') as f:
+        json.dump(default_config, f, indent=2)
+    
+    print(" Created default configuration file: bot_config.json")
+    print(" Targeting: TikTok, AI Trainers, Social bots")
+    print(" Keywords: viral, trending, challenge, dance, music, ai, dataset, etc.")
+    print(" Interactive elements: Enabled")
+    print(" Bait files: Enabled")
+
+# ============================================================================
 # MAIN ENTRY POINT
 # ============================================================================
 
 def main():
     """Main entry point"""
-    parser = argparse.ArgumentParser(description='🤖 Interactive AI Scraper Tar Pit')
+    parser = argparse.ArgumentParser(description=' Interactive AI Scraper Tar Pit')
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind to (default: 0.0.0.0)')
     parser.add_argument('--port', type=int, default=8080, help='Port to listen on (default: 8080)')
     parser.add_argument('--wizard', action='store_true', help='Run enhanced configuration wizard')
     parser.add_argument('--quick', action='store_true', help='Quick start with default config')
     parser.add_argument('--test', action='store_true', help='Test bait file generation')
     parser.add_argument('--no-interactive', action='store_true', help='Disable interactive elements')
+    parser.add_argument('--default', action='store_true', help='Create default config and exit')
     
     args = parser.parse_args()
     
@@ -1533,6 +1828,10 @@ def main():
     print("Enhanced tool with interactive elements and bait files")
     print("Educational use only - by ek0ms savi0r")
     print("="*70)
+    
+    if args.default:
+        create_default_config()
+        return
     
     if args.test:
         print("\n Testing bait file generation...")
@@ -1556,6 +1855,10 @@ def main():
         print(" Bait files: Enabled")
         print("="*60)
         
+        # Create default config if it doesn't exist
+        if not os.path.exists("bot_config.json"):
+            create_default_config()
+        
         tar_pit = InteractiveTarPit(args.host, args.port)
         tar_pit.start()
         return
@@ -1566,6 +1869,7 @@ def main():
         print("Run one of these commands first:")
         print("  python3 tarpit.py --wizard    # Interactive setup")
         print("  python3 tarpit.py --quick     # Quick default config")
+        print("  python3 tarpit.py --default   # Create default config")
         return
     
     # Start the tar pit
@@ -1585,4 +1889,12 @@ def main():
         print("\nTry running with --quick to create a default config first.")
 
 if __name__ == '__main__':
-    main()
+    # Create necessary directories
+    os.makedirs("logs", exist_ok=True)
+    os.makedirs("bait_files", exist_ok=True)
+    
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n Goodbye!")
+        sys.exit(0)
