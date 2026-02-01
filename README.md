@@ -325,7 +325,7 @@ python3 tarpit.py --wizard
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Interactive%20v2.0%20by%20ek0ms%20savi0r-blueviolet" alt="Hack The Planet">
+  <img src="https://img.shields.io/badge/CertifiedEthicalHacker%20v2.0%20by%20ek0ms%20savi0r-blueviolet" alt="Hack The Planet">
 </p>
-```
+
 
