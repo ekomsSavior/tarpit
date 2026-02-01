@@ -4,8 +4,8 @@
 <p align="center">
 
 
-  <img src="https://img.shields.io/badge/Educational%20Use-Only-yellow.svg" alt="ek0ms_savi0r">
-  <img src="https://img.shields.io/badge/Interactive-v2.0-orange.svg" alt="tarpit">
+  <img src="https://img.shields.io/badge/ek0ms%20savi0r-yellow.svg" alt="ek0ms_savi0r">
+ 
 </p>
 
 <p align="center">
