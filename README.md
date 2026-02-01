@@ -89,10 +89,6 @@ This tool should only be used:
 
 ##  Installation
 
-### Prerequisites
-- **Kali Linux** (or any Linux distribution)
-- **Python 3.6+**
-- **Root/sudo access** (for port 80)
 
 ### Quick Setup
 ```bash
