@@ -1,0 +1,565 @@
+{
+  "status": "success",
+  "data": {
+    "users": [
+      {
+        "id": 0,
+        "name": "User 0",
+        "email": "user0@example.com",
+        "created_at": "2025-03-24T20:06:16.927942",
+        "metadata": {
+          "preferences": "light",
+          "notifications": false,
+          "language": "de"
+        }
+      },
+      {
+        "id": 1,
+        "name": "User 1",
+        "email": "user1@example.com",
+        "created_at": "2025-04-02T20:06:16.927980",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": false,
+          "language": "en"
+        }
+      },
+      {
+        "id": 2,
+        "name": "User 2",
+        "email": "user2@example.com",
+        "created_at": "2025-02-16T20:06:16.927999",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": true,
+          "language": "es"
+        }
+      },
+      {
+        "id": 3,
+        "name": "User 3",
+        "email": "user3@example.com",
+        "created_at": "2025-05-20T20:06:16.928013",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": true,
+          "language": "en"
+        }
+      },
+      {
+        "id": 4,
+        "name": "User 4",
+        "email": "user4@example.com",
+        "created_at": "2026-01-14T20:06:16.928027",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": true,
+          "language": "en"
+        }
+      },
+      {
+        "id": 5,
+        "name": "User 5",
+        "email": "user5@example.com",
+        "created_at": "2025-05-27T20:06:16.928040",
+        "metadata": {
+          "preferences": "light",
+          "notifications": false,
+          "language": "en"
+        }
+      },
+      {
+        "id": 6,
+        "name": "User 6",
+        "email": "user6@example.com",
+        "created_at": "2025-04-19T20:06:16.928053",
+        "metadata": {
+          "preferences": "light",
+          "notifications": true,
+          "language": "de"
+        }
+      },
+      {
+        "id": 7,
+        "name": "User 7",
+        "email": "user7@example.com",
+        "created_at": "2025-03-23T20:06:16.928071",
+        "metadata": {
+          "preferences": "light",
+          "notifications": true,
+          "language": "es"
+        }
+      },
+      {
+        "id": 8,
+        "name": "User 8",
+        "email": "user8@example.com",
+        "created_at": "2025-04-01T20:06:16.928084",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": true,
+          "language": "fr"
+        }
+      },
+      {
+        "id": 9,
+        "name": "User 9",
+        "email": "user9@example.com",
+        "created_at": "2025-02-03T20:06:16.928098",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": true,
+          "language": "en"
+        }
+      },
+      {
+        "id": 10,
+        "name": "User 10",
+        "email": "user10@example.com",
+        "created_at": "2025-12-25T20:06:16.928111",
+        "metadata": {
+          "preferences": "light",
+          "notifications": false,
+          "language": "de"
+        }
+      },
+      {
+        "id": 11,
+        "name": "User 11",
+        "email": "user11@example.com",
+        "created_at": "2025-07-06T20:06:16.928124",
+        "metadata": {
+          "preferences": "light",
+          "notifications": false,
+          "language": "es"
+        }
+      },
+      {
+        "id": 12,
+        "name": "User 12",
+        "email": "user12@example.com",
+        "created_at": "2025-10-23T20:06:16.928136",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": true,
+          "language": "en"
+        }
+      },
+      {
+        "id": 13,
+        "name": "User 13",
+        "email": "user13@example.com",
+        "created_at": "2025-02-21T20:06:16.928148",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": true,
+          "language": "en"
+        }
+      },
+      {
+        "id": 14,
+        "name": "User 14",
+        "email": "user14@example.com",
+        "created_at": "2025-09-14T20:06:16.928161",
+        "metadata": {
+          "preferences": "light",
+          "notifications": true,
+          "language": "fr"
+        }
+      },
+      {
+        "id": 15,
+        "name": "User 15",
+        "email": "user15@example.com",
+        "created_at": "2025-07-01T20:06:16.928172",
+        "metadata": {
+          "preferences": "light",
+          "notifications": true,
+          "language": "es"
+        }
+      },
+      {
+        "id": 16,
+        "name": "User 16",
+        "email": "user16@example.com",
+        "created_at": "2025-05-01T20:06:16.928185",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": true,
+          "language": "fr"
+        }
+      },
+      {
+        "id": 17,
+        "name": "User 17",
+        "email": "user17@example.com",
+        "created_at": "2025-09-25T20:06:16.928198",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": false,
+          "language": "es"
+        }
+      },
+      {
+        "id": 18,
+        "name": "User 18",
+        "email": "user18@example.com",
+        "created_at": "2025-03-03T20:06:16.928210",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": false,
+          "language": "de"
+        }
+      },
+      {
+        "id": 19,
+        "name": "User 19",
+        "email": "user19@example.com",
+        "created_at": "2025-08-25T20:06:16.928223",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": false,
+          "language": "de"
+        }
+      },
+      {
+        "id": 20,
+        "name": "User 20",
+        "email": "user20@example.com",
+        "created_at": "2025-11-12T20:06:16.928240",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": true,
+          "language": "es"
+        }
+      },
+      {
+        "id": 21,
+        "name": "User 21",
+        "email": "user21@example.com",
+        "created_at": "2025-12-04T20:06:16.928252",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": true,
+          "language": "de"
+        }
+      },
+      {
+        "id": 22,
+        "name": "User 22",
+        "email": "user22@example.com",
+        "created_at": "2025-10-18T20:06:16.928264",
+        "metadata": {
+          "preferences": "light",
+          "notifications": false,
+          "language": "de"
+        }
+      },
+      {
+        "id": 23,
+        "name": "User 23",
+        "email": "user23@example.com",
+        "created_at": "2025-11-26T20:06:16.928276",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": false,
+          "language": "fr"
+        }
+      },
+      {
+        "id": 24,
+        "name": "User 24",
+        "email": "user24@example.com",
+        "created_at": "2025-08-25T20:06:16.928288",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": false,
+          "language": "en"
+        }
+      },
+      {
+        "id": 25,
+        "name": "User 25",
+        "email": "user25@example.com",
+        "created_at": "2025-07-18T20:06:16.928300",
+        "metadata": {
+          "preferences": "light",
+          "notifications": true,
+          "language": "de"
+        }
+      },
+      {
+        "id": 26,
+        "name": "User 26",
+        "email": "user26@example.com",
+        "created_at": "2025-02-06T20:06:16.928312",
+        "metadata": {
+          "preferences": "light",
+          "notifications": false,
+          "language": "fr"
+        }
+      },
+      {
+        "id": 27,
+        "name": "User 27",
+        "email": "user27@example.com",
+        "created_at": "2025-03-23T20:06:16.928325",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": true,
+          "language": "es"
+        }
+      },
+      {
+        "id": 28,
+        "name": "User 28",
+        "email": "user28@example.com",
+        "created_at": "2026-01-29T20:06:16.928337",
+        "metadata": {
+          "preferences": "light",
+          "notifications": false,
+          "language": "es"
+        }
+      },
+      {
+        "id": 29,
+        "name": "User 29",
+        "email": "user29@example.com",
+        "created_at": "2025-05-22T20:06:16.928354",
+        "metadata": {
+          "preferences": "light",
+          "notifications": true,
+          "language": "es"
+        }
+      },
+      {
+        "id": 30,
+        "name": "User 30",
+        "email": "user30@example.com",
+        "created_at": "2025-10-05T20:06:16.928366",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": false,
+          "language": "en"
+        }
+      },
+      {
+        "id": 31,
+        "name": "User 31",
+        "email": "user31@example.com",
+        "created_at": "2025-11-09T20:06:16.928378",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": false,
+          "language": "es"
+        }
+      },
+      {
+        "id": 32,
+        "name": "User 32",
+        "email": "user32@example.com",
+        "created_at": "2025-04-12T20:06:16.928390",
+        "metadata": {
+          "preferences": "light",
+          "notifications": false,
+          "language": "es"
+        }
+      },
+      {
+        "id": 33,
+        "name": "User 33",
+        "email": "user33@example.com",
+        "created_at": "2025-12-14T20:06:16.928403",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": true,
+          "language": "de"
+        }
+      },
+      {
+        "id": 34,
+        "name": "User 34",
+        "email": "user34@example.com",
+        "created_at": "2025-12-11T20:06:16.928419",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": true,
+          "language": "de"
+        }
+      },
+      {
+        "id": 35,
+        "name": "User 35",
+        "email": "user35@example.com",
+        "created_at": "2025-02-08T20:06:16.928431",
+        "metadata": {
+          "preferences": "light",
+          "notifications": true,
+          "language": "fr"
+        }
+      },
+      {
+        "id": 36,
+        "name": "User 36",
+        "email": "user36@example.com",
+        "created_at": "2025-02-06T20:06:16.928448",
+        "metadata": {
+          "preferences": "light",
+          "notifications": true,
+          "language": "de"
+        }
+      },
+      {
+        "id": 37,
+        "name": "User 37",
+        "email": "user37@example.com",
+        "created_at": "2025-08-05T20:06:16.928461",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": true,
+          "language": "en"
+        }
+      },
+      {
+        "id": 38,
+        "name": "User 38",
+        "email": "user38@example.com",
+        "created_at": "2025-09-28T20:06:16.928473",
+        "metadata": {
+          "preferences": "light",
+          "notifications": false,
+          "language": "en"
+        }
+      },
+      {
+        "id": 39,
+        "name": "User 39",
+        "email": "user39@example.com",
+        "created_at": "2025-08-08T20:06:16.928485",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": false,
+          "language": "fr"
+        }
+      },
+      {
+        "id": 40,
+        "name": "User 40",
+        "email": "user40@example.com",
+        "created_at": "2025-10-03T20:06:16.928497",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": true,
+          "language": "es"
+        }
+      },
+      {
+        "id": 41,
+        "name": "User 41",
+        "email": "user41@example.com",
+        "created_at": "2025-04-04T20:06:16.928511",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": true,
+          "language": "en"
+        }
+      },
+      {
+        "id": 42,
+        "name": "User 42",
+        "email": "user42@example.com",
+        "created_at": "2025-02-02T20:06:16.928523",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": false,
+          "language": "fr"
+        }
+      },
+      {
+        "id": 43,
+        "name": "User 43",
+        "email": "user43@example.com",
+        "created_at": "2025-02-15T20:06:16.928535",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": false,
+          "language": "de"
+        }
+      },
+      {
+        "id": 44,
+        "name": "User 44",
+        "email": "user44@example.com",
+        "created_at": "2025-10-15T20:06:16.928548",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": false,
+          "language": "es"
+        }
+      },
+      {
+        "id": 45,
+        "name": "User 45",
+        "email": "user45@example.com",
+        "created_at": "2025-08-19T20:06:16.928559",
+        "metadata": {
+          "preferences": "light",
+          "notifications": true,
+          "language": "de"
+        }
+      },
+      {
+        "id": 46,
+        "name": "User 46",
+        "email": "user46@example.com",
+        "created_at": "2025-07-10T20:06:16.928571",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": false,
+          "language": "de"
+        }
+      },
+      {
+        "id": 47,
+        "name": "User 47",
+        "email": "user47@example.com",
+        "created_at": "2025-09-06T20:06:16.928583",
+        "metadata": {
+          "preferences": "auto",
+          "notifications": true,
+          "language": "en"
+        }
+      },
+      {
+        "id": 48,
+        "name": "User 48",
+        "email": "user48@example.com",
+        "created_at": "2025-04-25T20:06:16.928595",
+        "metadata": {
+          "preferences": "dark",
+          "notifications": false,
+          "language": "de"
+        }
+      },
+      {
+        "id": 49,
+        "name": "User 49",
+        "email": "user49@example.com",
+        "created_at": "2025-06-23T20:06:16.928608",
+        "metadata": {
+          "preferences": "light",
+          "notifications": false,
+          "language": "es"
+        }
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "total_pages": 100,
+      "total_items": 5000,
+      "next_page": "/api/v2/users?page=2"
+    }
+  },
+  "generated_at": "2026-01-31T20:06:16.928622",
+  "version": "2.0.1"
+}
