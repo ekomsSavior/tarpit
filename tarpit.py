@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Enhanced AI Scraper Tar Pit with Interactive Elements
+Enhanced AI Scraper Tar Pit with Interactive Elements and ngrok Integration
 Educational Security Tool - For authorized research only
 """
 
@@ -27,6 +27,11 @@ from dataclasses import dataclass, asdict
 import logging
 from collections import Counter, defaultdict
 import re
+import subprocess
+import requests
+import atexit
+import socket
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(
@@ -40,7 +45,314 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# TARGETED CONTENT GENERATOR (MISSING CLASS)
+# NGrok Integration - IMPROVED VERSION
+# ============================================================================
+
+class NgrokManager:
+    """Manage ngrok tunneling for public access"""
+    
+    def __init__(self, auth_token: str = None, region: str = "us"):
+        self.auth_token = auth_token
+        self.region = region
+        self.process = None
+        self.public_url = None
+        self.api_url = "http://localhost:4040/api"
+        self.setup_ngrok_config()
+        self.tunnel_start_time = None
+    
+    def setup_ngrok_config(self):
+        """Setup ngrok configuration file"""
+        try:
+            # First, check if ngrok is installed and working
+            if not self.is_ngrok_installed():
+                logger.error("ngrok is not installed or not in PATH")
+                return False
+            
+            # Check if auth token is valid
+            if self.auth_token:
+                # Test the auth token
+                test_cmd = ["ngrok", "config", "check"]
+                result = subprocess.run(test_cmd, capture_output=True, text=True)
+                if result.returncode != 0:
+                    logger.warning("ngrok config check failed, auth token might be invalid")
+                
+                # Update config with auth token
+                config_cmd = ["ngrok", "config", "add-authtoken", self.auth_token]
+                result = subprocess.run(config_cmd, capture_output=True, text=True)
+                if result.returncode == 0:
+                    logger.info("ngrok auth token configured successfully")
+                else:
+                    logger.error(f"Failed to configure ngrok auth token: {result.stderr}")
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error setting up ngrok config: {e}")
+            return False
+    
+    def start_tunnel(self, port: int = 8080, protocol: str = "http") -> Optional[str]:
+        """Start ngrok tunnel and return public URL"""
+        try:
+            # First kill any existing ngrok processes
+            self.kill_existing_ngrok()
+            
+            # Build command with improved parameters
+            cmd = ["ngrok", protocol, str(port)]
+            
+            # Add region if specified
+            if self.region:
+                cmd.extend(["--region", self.region])
+            
+            # Add additional options for better stability
+            cmd.extend([
+                "--log", "stdout",
+                "--log-format", "json",
+                "--log-level", "info"
+            ])
+            
+            logger.info(f"Starting ngrok tunnel on port {port}...")
+            print(f"Starting ngrok: ngrok http {port} --region {self.region}")
+            
+            # Start ngrok process with better error handling
+            self.process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdin=subprocess.PIPE,
+                universal_newlines=True,
+                bufsize=1
+            )
+            
+            self.tunnel_start_time = time.time()
+            
+            # Start a thread to read output
+            threading.Thread(target=self.read_ngrok_output, daemon=True).start()
+            
+            # Give ngrok time to start
+            print(f"Waiting for ngrok to initialize (10 seconds)...")
+            for i in range(10):
+                time.sleep(1)
+                print(f"   {i+1}/10 seconds", end='\r')
+            
+            # Try to get public URL
+            self.public_url = self.get_public_url_with_retry()
+            
+            if self.public_url:
+                print(f"\nngrok tunnel established!")
+                print(f"Public URL: {self.public_url}")
+                print(f"ngrok dashboard: http://localhost:4040")
+                logger.info(f"ngrok tunnel established: {self.public_url}")
+                
+                # Start monitoring thread
+                threading.Thread(target=self.monitor_tunnel, daemon=True).start()
+                return self.public_url
+            else:
+                print(f"\nFailed to get ngrok public URL")
+                # Check process output
+                if self.process.poll() is not None:
+                    stdout, stderr = self.process.communicate()
+                    logger.error(f"ngrok process failed: {stderr}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to start ngrok: {e}")
+            print(f"Error starting ngrok: {e}")
+            return None
+    
+    def read_ngrok_output(self):
+        """Read ngrok output for debugging"""
+        if self.process:
+            for line in iter(self.process.stdout.readline, ''):
+                if line.strip():
+                    try:
+                        log_data = json.loads(line.strip())
+                        if 'msg' in log_data and 'url' in log_data['msg']:
+                            url_match = re.search(r'(https?://[^\s]+)', log_data['msg'])
+                            if url_match:
+                                self.public_url = url_match.group(0)
+                                print(f"Detected URL in logs: {self.public_url}")
+                    except json.JSONDecodeError:
+                        # Not JSON, just print as regular output
+                        if "started tunnel" in line.lower() or "url=" in line.lower():
+                            print(f"ngrok: {line.strip()}")
+    
+    def get_public_url_with_retry(self, max_retries: int = 15) -> Optional[str]:
+        """Get public URL from ngrok API with retries"""
+        print(f"Looking for ngrok public URL...")
+        
+        for attempt in range(max_retries):
+            try:
+                # Try to get from API
+                response = requests.get(f"{self.api_url}/tunnels", timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    tunnels = data.get('tunnels', [])
+                    
+                    if tunnels:
+                        for tunnel in tunnels:
+                            if tunnel.get('proto') in ['http', 'https']:
+                                public_url = tunnel.get('public_url')
+                                if public_url:
+                                    print(f"Found public URL after {attempt+1} attempts")
+                                    return public_url
+                
+                # Also try the simpler status endpoint
+                try:
+                    status_resp = requests.get(f"{self.api_url}", timeout=3)
+                    if status_resp.status_code == 200:
+                        status_data = status_resp.json()
+                        if 'tunnels' in status_data:
+                            for tunnel in status_data['tunnels']:
+                                if tunnel.get('public_url'):
+                                    return tunnel.get('public_url')
+                except:
+                    pass
+                
+                time.sleep(1)
+                print(f"   Attempt {attempt+1}/{max_retries}...", end='\r')
+                
+            except requests.exceptions.RequestException:
+                time.sleep(1)
+                continue
+        
+        print(f"\nCould not get URL from API, trying alternative methods...")
+        
+        # Alternative method: check ngrok config directly
+        try:
+            result = subprocess.run(
+                ["ngrok", "tunnel", "list", "--format=json"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                tunnels = json.loads(result.stdout)
+                for tunnel in tunnels:
+                    if 'public_url' in tunnel:
+                        return tunnel['public_url']
+        except:
+            pass
+        
+        return None
+    
+    def monitor_tunnel(self):
+        """Monitor ngrok tunnel health"""
+        check_interval = 30  # Check every 30 seconds
+        
+        while self.process and self.process.poll() is None:
+            time.sleep(check_interval)
+            
+            # Check if tunnel is still responding
+            if not self.is_tunnel_alive():
+                logger.warning("ngrok tunnel appears to be down")
+                print("ngrok tunnel appears down, attempting to restart...")
+                
+                # Restart tunnel
+                current_port = 8080  # Default, should track actual port
+                self.stop()
+                time.sleep(2)
+                self.start_tunnel(current_port)
+    
+    def is_tunnel_alive(self) -> bool:
+        """Check if tunnel is alive by querying ngrok API"""
+        try:
+            response = requests.get(f"{self.api_url}/tunnels", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                return bool(data.get('tunnels'))
+        except:
+            return False
+        return False
+    
+    def kill_existing_ngrok(self):
+        """Kill any existing ngrok processes"""
+        try:
+            # Kill ngrok processes
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/F", "/IM", "ngrok.exe"], 
+                             capture_output=True)
+            else:
+                subprocess.run(["pkill", "-f", "ngrok"], 
+                             capture_output=True)
+                subprocess.run(["pkill", "-9", "-f", "ngrok"], 
+                             capture_output=True)
+            time.sleep(2)
+        except:
+            pass
+    
+    def stop(self):
+        """Stop ngrok tunnel"""
+        if self.process:
+            try:
+                print("Stopping ngrok tunnel...")
+                self.process.terminate()
+                try:
+                    self.process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self.process.kill()
+                    self.process.wait()
+                logger.info("ngrok tunnel stopped")
+                print("ngrok tunnel stopped")
+            except Exception as e:
+                logger.error(f"Error stopping ngrok: {e}")
+            finally:
+                self.process = None
+                self.public_url = None
+        
+        # Also kill any orphaned ngrok processes
+        self.kill_existing_ngrok()
+    
+    def is_ngrok_installed(self) -> bool:
+        """Check if ngrok is installed"""
+        try:
+            # First try ngrok version
+            result = subprocess.run(["ngrok", "--version"], 
+                                  capture_output=True, 
+                                  text=True,
+                                  timeout=2)
+            if result.returncode == 0:
+                version_match = re.search(r'ngrok\s+version\s+([\d.]+)', result.stdout)
+                if version_match:
+                    print(f"ngrok version {version_match.group(1)} detected")
+                    return True
+            
+            # Try alternative check
+            result = subprocess.run(["which", "ngrok"], 
+                                  capture_output=True, 
+                                  text=True)
+            if result.returncode == 0:
+                print(f"ngrok found at {result.stdout.strip()}")
+                return True
+            
+            # Check common installation locations
+            common_paths = [
+                "/usr/local/bin/ngrok",
+                "/usr/bin/ngrok",
+                os.path.expanduser("~/bin/ngrok"),
+                os.path.expanduser("~/.local/bin/ngrok")
+            ]
+            
+            for path in common_paths:
+                if os.path.exists(path):
+                    print(f"ngrok found at {path}")
+                    return True
+            
+            return False
+            
+        except (subprocess.SubprocessError, FileNotFoundError):
+            return False
+    
+    def get_tunnel_info(self) -> Dict:
+        """Get detailed tunnel information"""
+        try:
+            response = requests.get(f"{self.api_url}/tunnels", timeout=5)
+            if response.status_code == 200:
+                return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to get tunnel info: {e}")
+        return {}
+
+# ============================================================================
+# TARGETED CONTENT GENERATOR
 # ============================================================================
 
 class TargetedContentGenerator:
@@ -554,11 +866,11 @@ class InteractiveElementsGenerator:
         buttons = []
         
         button_texts = {
-            "tiktok": [" View Video", " Like Content", " Share Now", " Play Sound", " Trending"],
-            "news": [" Read More", " Subscribe", " View Stats", " Analysis", " Latest"],
-            "shopping": [" Add to Cart", " Buy Now", " Add to Wishlist", " View Price", " Get Deal"],
-            "ai_trainer": [" Download Dataset", " Train Model", " View Results", " Configure", " Deploy"],
-            "academic": [" Read Paper", " Cite This", " Abstract", " Methodology", " Download PDF"]
+            "tiktok": ["View Video", "Like Content", "Share Now", "Play Sound", "Trending"],
+            "news": ["Read More", "Subscribe", "View Stats", "Analysis", "Latest"],
+            "shopping": ["Add to Cart", "Buy Now", "Add to Wishlist", "View Price", "Get Deal"],
+            "ai_trainer": ["Download Dataset", "Train Model", "View Results", "Configure", "Deploy"],
+            "academic": ["Read Paper", "Cite This", "Abstract", "Methodology", "Download PDF"]
         }
         
         texts = button_texts.get(bot_type, ["Click Here", "Learn More", "Download", "View Details"])
@@ -689,7 +1001,7 @@ class InteractiveElementsGenerator:
             keyword = random.choice(keywords)
             url = f"/download/{bot_type}/{keyword}_dataset.{file_type}"
             
-            link_html = f'<a href="{url}" class="download-link" data-bot="{bot_type}" data-filetype="{file_type}" style="color:#28a745;text-decoration:none;margin:0 10px;padding:8px 12px;border-radius:5px;background:#d4edda;border:1px solid #c3e6cb;display:inline-block;">⬇️ Download {keyword.title()} Data ({file_type.upper()})</a>'
+            link_html = f'<a href="{url}" class="download-link" data-bot="{bot_type}" data-filetype="{file_type}" style="color:#28a745;text-decoration:none;margin:0 10px;padding:8px 12px;border-radius:5px;background:#d4edda;border:1px solid #c3e6cb;display:inline-block;">Download {keyword.title()} Data ({file_type.upper()})</a>'
             links.append(link_html)
         
         return links
@@ -915,6 +1227,26 @@ class ConfigManager:
         return "generic"
 
 # ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+def is_port_in_use(port: int, host: str = '0.0.0.0') -> bool:
+    """Check if a port is already in use"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind((host, port))
+            return False
+        except socket.error:
+            return True
+
+def find_available_port(start_port: int = 8080, max_attempts: int = 100) -> Optional[int]:
+    """Find an available port starting from start_port"""
+    for port in range(start_port, start_port + max_attempts):
+        if not is_port_in_use(port):
+            return port
+    return None
+
+# ============================================================================
 # ENHANCED REQUEST HANDLER WITH INTERACTIVE ELEMENTS
 # ============================================================================
 
@@ -927,13 +1259,19 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
                  control_panel=None,
                  bait_manager=None,
                  interactive_gen=None,
+                 ngrok_manager=None,
                  **kwargs):
         self.content_gen = content_gen
         self.config_manager = config_manager
         self.control_panel = control_panel
         self.bait_manager = bait_manager
         self.interactive_gen = interactive_gen
+        self.ngrok_manager = ngrok_manager
         super().__init__(*args, **kwargs)
+    
+    def log_message(self, format, *args):
+        """Override to suppress default logging"""
+        pass
     
     def do_GET(self):
         """Handle GET requests"""
@@ -968,6 +1306,15 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         elif self.path.startswith('/bait/'):
             self.handle_bait_files()
             return
+        elif self.path == '/status':
+            self.handle_status_page()
+            return
+        elif self.path == '/ngrok':
+            self.handle_ngrok_info()
+            return
+        elif self.path == '/test':
+            self.handle_test_page()
+            return
         
         # Generate targeted response
         response = self.generate_targeted_response(bot_type, is_bot)
@@ -988,7 +1335,7 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         
         # Print to console
         if is_bot:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] 🤖 {bot_type.upper()} detected - {self.path}")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} detected - {self.path}")
     
     def do_POST(self):
         """Handle POST requests (for forms, uploads, etc.)"""
@@ -1008,7 +1355,7 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
             <html>
             <head><title>Submission Received</title></head>
             <body style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
-                <h1> Thank You!</h1>
+                <h1>Thank You!</h1>
                 <p>Your submission has been received and is being processed.</p>
                 <p><a href="/">Return to homepage</a></p>
                 <div style="display:none;">
@@ -1101,7 +1448,7 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
             self.wfile.write(content)
         
         logger.info(f"Download served: {filename} to {bot_type} bot")
-        print(f"[{datetime.now().strftime('%H:%M:%S')}]  {bot_type.upper()} downloaded {filename}")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} downloaded {filename}")
     
     def generate_fake_zip(self, bot_type: str) -> bytes:
         """Generate a fake ZIP file with multiple bait files"""
@@ -1143,16 +1490,56 @@ All content is synthetic and does not represent real information.
         """Handle API requests"""
         api_path = self.path[5:]  # Remove '/api/'
         
-        if api_path.startswith('data'):
+        if api_path == 'status':
+            self.send_status_response()
+        elif api_path == 'ngrok':
+            self.send_ngrok_response()
+        elif api_path.startswith('data'):
             self.send_api_response(bot_type)
         elif api_path.startswith('analytics'):
             self.send_analytics_response(bot_type)
         else:
             self.send_json_response({
                 "error": "Invalid API endpoint",
-                "available_endpoints": ["/api/data", "/api/analytics", "/api/downloads"],
+                "available_endpoints": ["/api/data", "/api/analytics", "/api/status", "/api/ngrok"],
                 "timestamp": datetime.now().isoformat()
             })
+    
+    def send_status_response(self):
+        """Send status response"""
+        stats = self.control_panel.stats if self.control_panel else {}
+        response = {
+            "status": "running",
+            "timestamp": datetime.now().isoformat(),
+            "stats": {
+                "total_requests": stats.get("total_requests", 0),
+                "bot_requests": stats.get("bot_requests", 0),
+                "targeted_bots": stats.get("targeted_bots", 0),
+                "downloads": stats.get("downloads", 0),
+                "bot_types_detected": dict(stats.get("bot_types_detected", {})),
+                "last_request": stats.get("last_request", "None")
+            }
+        }
+        
+        self.send_json_response(response)
+    
+    def send_ngrok_response(self):
+        """Send ngrok tunnel information"""
+        if self.ngrok_manager and self.ngrok_manager.public_url:
+            response = {
+                "active": True,
+                "public_url": self.ngrok_manager.public_url,
+                "local_url": f"http://localhost:{self.server.server_port}",
+                "protocol": "http",
+                "started": datetime.fromtimestamp(self.ngrok_manager.tunnel_start_time).isoformat() if self.ngrok_manager.tunnel_start_time else None
+            }
+        else:
+            response = {
+                "active": False,
+                "message": "ngrok tunnel is not active"
+            }
+        
+        self.send_json_response(response)
     
     def send_api_response(self, bot_type: str):
         """Send fake API response"""
@@ -1235,7 +1622,7 @@ All content is synthetic and does not represent real information.
             </style>
         </head>
         <body>
-            <h1> Upload Bait Files</h1>
+            <h1>Upload Bait Files</h1>
             <p>Upload files that will be served to bots as bait.</p>
             
             <form id="uploadForm" enctype="multipart/form-data">
@@ -1243,13 +1630,13 @@ All content is synthetic and does not represent real information.
                     <input type="file" id="fileInput" name="file" multiple style="display: none;">
                     <button type="button" onclick="document.getElementById('fileInput').click()" 
                             style="padding: 15px 30px; font-size: 16px; cursor: pointer;">
-                        📎 Select Files
+                        Select Files
                     </button>
                     <p>or drag and drop files here</p>
                     <div id="selectedFiles"></div>
                 </div>
                 <button type="submit" style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                     Upload Selected Files
+                    Upload Selected Files
                 </button>
             </form>
             
@@ -1363,6 +1750,291 @@ All content is synthetic and does not represent real information.
         else:
             self.send_error(404)
     
+    def handle_status_page(self):
+        """Show status page with statistics"""
+        public_url = self.ngrok_manager.public_url if self.ngrok_manager else None
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Tar Pit Status</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; }}
+                .stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 30px 0; }}
+                .stat-card {{ background: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 4px solid #007bff; }}
+                .stat-value {{ font-size: 2em; font-weight: bold; color: #007bff; }}
+                .stat-label {{ color: #666; margin-top: 5px; }}
+                .bot-list {{ margin-top: 20px; }}
+                .bot-item {{ padding: 10px; margin: 5px 0; background: #e8f4fd; border-radius: 5px; }}
+                .tunnel-info {{ background: #e8f4fd; padding: 20px; border-radius: 10px; margin: 20px 0; }}
+                .status-badge {{ display: inline-block; padding: 5px 10px; border-radius: 20px; color: white; font-weight: bold; }}
+                .status-active {{ background: #28a745; }}
+                .status-inactive {{ background: #dc3545; }}
+                .url-box {{ background: white; padding: 10px; border-radius: 5px; font-family: monospace; word-break: break-all; }}
+            </style>
+        </head>
+        <body>
+            <h1>Tar Pit Status Dashboard</h1>
+            <p>Real-time statistics and monitoring</p>
+            
+            <div class="tunnel-info">
+                <h2>Tunnel Status</h2>
+                {"<p><strong>Public URL:</strong> <div class='url-box'>" + public_url + "</div></p>" if public_url else "<p><span class='status-badge status-inactive'>LOCAL ONLY</span> ngrok tunnel is not active</p>"}
+                <p><strong>Local URL:</strong> http://localhost:{self.server.server_port}</p>
+                {"<p><a href='" + public_url + "' target='_blank'>Open public URL</a></p>" if public_url else ""}
+                <p><a href="http://localhost:4040" target="_blank">ngrok dashboard</a></p>
+            </div>
+            
+            <div class="stats-grid" id="statsGrid">
+                <!-- Stats will be loaded via JavaScript -->
+            </div>
+            
+            <div class="bot-list" id="botList">
+                <h3>Bot Activity</h3>
+                <!-- Bot list will be loaded here -->
+            </div>
+            
+            <div style="margin-top: 30px; padding: 20px; background: #f0f0f0; border-radius: 10px;">
+                <h3>Quick Links</h3>
+                <p><a href="/">Home</a> | <a href="/test">Test Page</a> | <a href="/upload/">Upload Files</a> | <a href="/ngrok">ngrok Info</a></p>
+                <p><a href="/download/test/test.zip">Test Download</a> | <a href="/api/data">API Test</a></p>
+            </div>
+            
+            <script>
+            async function loadStats() {{
+                try {{
+                    const response = await fetch('/api/status');
+                    const data = await response.json();
+                    
+                    // Update stats grid
+                    const statsGrid = document.getElementById('statsGrid');
+                    statsGrid.innerHTML = '';
+                    
+                    const stats = [
+                        {{ label: 'Total Requests', value: data.stats.total_requests, icon: '' }},
+                        {{ label: 'Bot Requests', value: data.stats.bot_requests, icon: '' }},
+                        {{ label: 'Downloads', value: data.stats.downloads || 0, icon: '' }},
+                        {{ label: 'Targeted Bots', value: data.stats.targeted_bots || 0, icon: '' }},
+                        {{ label: 'Unique Bot Types', value: Object.keys(data.stats.bot_types_detected || {{}}).length, icon: '' }},
+                        {{ label: 'Last Activity', value: data.stats.last_request || 'None', icon: '' }}
+                    ];
+                    
+                    stats.forEach(stat => {{
+                        const card = document.createElement('div');
+                        card.className = 'stat-card';
+                        card.innerHTML = `
+                            <div class="stat-value">${{stat.value}}</div>
+                            <div class="stat-label">${{stat.label}}</div>
+                        `;
+                        statsGrid.appendChild(card);
+                    }});
+                    
+                    // Update bot list
+                    const botList = document.getElementById('botList');
+                    if (data.stats.bot_types_detected) {{
+                        let botHTML = '<h3>Bot Activity by Type</h3>';
+                        for (const [botType, count] of Object.entries(data.stats.bot_types_detected)) {{
+                            botHTML += `<div class="bot-item"><strong>${{botType}}:</strong> ${{count}} requests</div>`;
+                        }}
+                        botList.innerHTML = botHTML;
+                    }}
+                    
+                }} catch (error) {{
+                    console.error('Failed to load stats:', error);
+                }}
+            }}
+            
+            // Load stats immediately and every 10 seconds
+            loadStats();
+            setInterval(loadStats, 10000);
+            </script>
+        </body>
+        </html>
+        """
+        
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html')
+        self.end_headers()
+        self.wfile.write(html.encode('utf-8'))
+    
+    def handle_ngrok_info(self):
+        """Show ngrok tunnel information"""
+        html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>ngrok Tunnel Status</title>
+            <style>
+                body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+                .tunnel-info { background: #e8f4fd; padding: 20px; border-radius: 10px; margin: 20px 0; }
+                .status-badge { display: inline-block; padding: 5px 10px; border-radius: 20px; color: white; font-weight: bold; }
+                .status-active { background: #28a745; }
+                .status-inactive { background: #dc3545; }
+                .url-box { background: white; padding: 10px; border-radius: 5px; font-family: monospace; word-break: break-all; }
+            </style>
+        </head>
+        <body>
+            <h1>ngrok Tunnel Information</h1>
+            <p>Public access configuration</p>
+            
+            <div id="ngrokInfo">
+                <p>Loading ngrok tunnel information...</p>
+            </div>
+            
+            <div style="margin-top: 30px;">
+                <h3>How to Use</h3>
+                <ol>
+                    <li>Copy the public URL above</li>
+                    <li>Share it with others or use it from other devices</li>
+                    <li>The tunnel will automatically forward traffic to this local server</li>
+                    <li>All bot interactions will be logged locally</li>
+                </ol>
+                
+                <p><a href="/status">Back to Status</a> | <a href="/">Home</a></p>
+            </div>
+            
+            <script>
+            async function loadNgrokInfo() {
+                try {
+                    const response = await fetch('/api/ngrok');
+                    const data = await response.json();
+                    
+                    const container = document.getElementById('ngrokInfo');
+                    
+                    if (data.active) {
+                        container.innerHTML = `
+                            <div class="tunnel-info">
+                                <h2><span class="status-badge status-active">ACTIVE</span></h2>
+                                <p><strong>Public URL:</strong></p>
+                                <div class="url-box">${data.public_url}</div>
+                                <p><strong>Local Endpoint:</strong> ${data.local_url}</p>
+                                <p><strong>Protocol:</strong> ${data.protocol}</p>
+                                <p><strong>Started:</strong> ${data.started}</p>
+                                <p><a href="${data.public_url}" target="_blank">Open in new tab</a></p>
+                                <p><a href="http://localhost:4040" target="_blank">Open ngrok dashboard</a></p>
+                            </div>
+                        `;
+                    } else {
+                        container.innerHTML = `
+                            <div class="tunnel-info">
+                                <h2><span class="status-badge status-inactive">INACTIVE</span></h2>
+                                <p>ngrok tunnel is not active. Start the server with --ngrok flag.</p>
+                                <p>Make sure ngrok is installed and authenticated.</p>
+                            </div>
+                        `;
+                    }
+                    
+                } catch (error) {
+                    document.getElementById('ngrokInfo').innerHTML = 
+                        '<div class="tunnel-info"><p>Error loading ngrok information. Make sure ngrok is running.</p></div>';
+                }
+            }
+            
+            loadNgrokInfo();
+            </script>
+        </body>
+        </html>
+        """
+        
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html')
+        self.end_headers()
+        self.wfile.write(html.encode('utf-8'))
+    
+    def handle_test_page(self):
+        """Show test page for debugging"""
+        html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Test Page</title>
+            <style>
+                body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+                .test-section { margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 10px; }
+                .test-button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+                .test-button:hover { background: #0056b3; }
+            </style>
+        </head>
+        <body>
+            <h1>Test Page</h1>
+            <p>Use this page to test various features of the tar pit.</p>
+            
+            <div class="test-section">
+                <h3>Link Tests</h3>
+                <p><a href="/download/test/test.pdf">Test PDF Download</a></p>
+                <p><a href="/download/test/test.csv">Test CSV Download</a></p>
+                <p><a href="/download/test/test.json">Test JSON Download</a></p>
+                <p><a href="/download/test/test.zip">Test ZIP Download</a></p>
+            </div>
+            
+            <div class="test-section">
+                <h3>API Tests</h3>
+                <button class="test-button" onclick="testApi('data')">Test Data API</button>
+                <button class="test-button" onclick="testApi('status')">Test Status API</button>
+                <button class="test-button" onclick="testApi('ngrok')">Test ngrok API</button>
+                <div id="apiResult" style="margin-top: 10px; padding: 10px; background: white; border-radius: 5px;"></div>
+            </div>
+            
+            <div class="test-section">
+                <h3>Bot Simulation</h3>
+                <p>Simulate different bot user agents:</p>
+                <button class="test-button" onclick="simulateBot('Googlebot')">Google Bot</button>
+                <button class="test-button" onclick="simulateBot('GPTBot')">GPT Bot</button>
+                <button class="test-button" onclick="simulateBot('TikTokBot')">TikTok Bot</button>
+                <button class="test-button" onclick="simulateBot('SemanticScholarBot')">Academic Bot</button>
+                <div id="botResult" style="margin-top: 10px; padding: 10px; background: white; border-radius: 5px;"></div>
+            </div>
+            
+            <div class="test-section">
+                <h3>System Info</h3>
+                <p><a href="/status">View Status Dashboard</a></p>
+                <p><a href="/ngrok">View ngrok Info</a></p>
+                <p><a href="/">Go to Home</a></p>
+            </div>
+            
+            <script>
+            async function testApi(endpoint) {
+                const apiResult = document.getElementById('apiResult');
+                apiResult.innerHTML = 'Testing...';
+                
+                try {
+                    const response = await fetch(`/api/${endpoint}`);
+                    const data = await response.json();
+                    apiResult.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } catch (error) {
+                    apiResult.innerHTML = `Error: ${error}`;
+                }
+            }
+            
+            async function simulateBot(userAgent) {
+                const botResult = document.getElementById('botResult');
+                botResult.innerHTML = `Simulating ${userAgent}...`;
+                
+                try {
+                    const response = await fetch('/', {
+                        headers: {
+                            'User-Agent': userAgent
+                        }
+                    });
+                    const text = await response.text();
+                    botResult.innerHTML = `<p><strong>Status:</strong> ${response.status}</p>
+                                          <p><strong>Detected as:</strong> ${text.includes('bot') ? 'Bot' : 'Human'}</p>
+                                          <p><small>Response preview: ${text.substring(0, 200)}...</small></p>`;
+                } catch (error) {
+                    botResult.innerHTML = `Error: ${error}`;
+                }
+            }
+            </script>
+        </body>
+        </html>
+        """
+        
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html')
+        self.end_headers()
+        self.wfile.write(html.encode('utf-8'))
+    
     def get_mime_type(self, filename: str) -> str:
         """Get MIME type for file"""
         mime_types = {
@@ -1410,7 +2082,20 @@ All content is synthetic and does not represent real information.
     
     def generate_human_page(self) -> str:
         """Generate page for human visitors"""
-        return """
+        public_url = self.ngrok_manager.public_url if self.ngrok_manager else None
+        
+        tunnel_info = ""
+        if public_url:
+            tunnel_info = f"""
+            <div style="padding: 15px; background: #e8f4fd; border-radius: 10px; margin: 20px 0;">
+                <h3>Public Access Available</h3>
+                <p><strong>Public URL:</strong> <code style="background: white; padding: 5px; border-radius: 3px;">{public_url}</code></p>
+                <p>Share this URL to access from any device or network.</p>
+                <p><a href="{public_url}" target="_blank">Open public URL</a></p>
+            </div>
+            """
+        
+        return f"""
         <!DOCTYPE html>
         <html>
         <head><title>Research Site</title></head>
@@ -1418,9 +2103,18 @@ All content is synthetic and does not represent real information.
             <h1>Welcome to the Research Portal</h1>
             <p>This site is used for academic research on web traffic patterns.</p>
             <p>For more information, please contact the research team.</p>
+            
+            {tunnel_info}
+            
             <hr>
             <p><small>Educational use only. All access is logged for research purposes.</small></p>
-            <p><a href="/upload/">Upload bait files</a> | <a href="/bait/list">View bait files</a></p>
+            <p>
+                <a href="/upload/">Upload bait files</a> | 
+                <a href="/bait/list">View bait files</a> | 
+                <a href="/status">View status dashboard</a> | 
+                <a href="/ngrok">ngrok tunnel info</a> |
+                <a href="/test">Test page</a>
+            </p>
         </body>
         </html>
         """
@@ -1469,14 +2163,14 @@ All content is synthetic and does not represent real information.
         if config.interactive_elements and is_targeted:
             interactive = self.interactive_gen.generate_interactive_page(bot_type, content['keywords'])
             
-            html_parts.append('<hr><h2> Interactive Elements</h2>')
+            html_parts.append('<hr><h2>Interactive Elements</h2>')
             html_parts.extend(interactive['buttons'])
             html_parts.append('<br><br>')
             
-            html_parts.append('<h3> Forms & Inputs</h3>')
+            html_parts.append('<h3>Forms & Inputs</h3>')
             html_parts.extend(interactive['forms'])
             
-            html_parts.append('<h3> Related Content</h3>')
+            html_parts.append('<h3>Related Content</h3>')
             html_parts.extend(interactive['links'])
             
             html_parts.append(interactive['dynamic_content'])
@@ -1484,7 +2178,7 @@ All content is synthetic and does not represent real information.
         
         # Add download section if enabled
         if config.bait_files_enabled and is_targeted:
-            html_parts.append('<hr><h2> Download Datasets</h2>')
+            html_parts.append('<hr><h2>Download Datasets</h2>')
             html_parts.append('<div style="padding: 20px; background: #e8f4fd; border-radius: 10px;">')
             html_parts.append('<h3>Available Datasets for Download:</h3>')
             
@@ -1497,7 +2191,7 @@ All content is synthetic and does not represent real information.
                     <small>Contains {random.randint(100, 10000)} data points | Updated {random.randint(1, 30)} days ago</small><br>
                     <a href="/download/{bot_type}/{keyword}_dataset.{file_type.lower()}" 
                        style="display: inline-block; padding: 8px 16px; margin-top: 5px; background: #28a745; color: white; text-decoration: none; border-radius: 5px;">
-                         Download {file_type}
+                        Download {file_type}
                     </a>
                 </div>
                 ''')
@@ -1568,19 +2262,23 @@ All content is synthetic and does not represent real information.
         return f'<iframe src="{src}" style="display:none;"></iframe>'
 
 # ============================================================================
-# ENHANCED MAIN APPLICATION
+# ENHANCED MAIN APPLICATION WITH NGrok
 # ============================================================================
 
 class InteractiveTarPit:
-    """Main interactive tar pit application"""
+    """Main interactive tar pit application with ngrok support"""
     
-    def __init__(self, host: str = '0.0.0.0', port: int = 8080):
+    def __init__(self, host: str = '0.0.0.0', port: int = 8080, ngrok_auth_token: str = None):
         self.host = host
         self.port = port
         self.config_manager = ConfigManager()
         self.content_gen = TargetedContentGenerator(self.config_manager.active_config)
         self.bait_manager = BaitContentManager()
         self.interactive_gen = InteractiveElementsGenerator()
+        
+        # Initialize ngrok manager
+        self.ngrok_manager = NgrokManager(auth_token=ngrok_auth_token)
+        self.public_url = None
         
         # Enhanced control panel
         from collections import Counter
@@ -1599,13 +2297,23 @@ class InteractiveTarPit:
         })()
         
         self.server = None
+        self.server_thread = None
         
         # Create directories
         os.makedirs("logs", exist_ok=True)
         os.makedirs("bait_files", exist_ok=True)
+        
+        # Register cleanup
+        atexit.register(self.cleanup)
     
-    def start(self):
-        """Start the enhanced tar pit"""
+    def start(self, use_ngrok: bool = False, public_url: str = None):
+        """Start the enhanced tar pit with optional ngrok"""
+        
+        # Find available port
+        self.port = self.find_available_port(self.port)
+        if not self.port:
+            print(f"ERROR: Could not find an available port starting from {self.port}")
+            return
         
         # Setup HTTP handler
         handler = lambda *args: InteractiveTarPitHandler(
@@ -1614,54 +2322,139 @@ class InteractiveTarPit:
             config_manager=self.config_manager,
             control_panel=self.control_panel,
             bait_manager=self.bait_manager,
-            interactive_gen=self.interactive_gen
+            interactive_gen=self.interactive_gen,
+            ngrok_manager=self.ngrok_manager
         )
         
-        self.server = HTTPServer((self.host, self.port), handler)
-        
-        print(f"\n Interactive AI Scraper Tar Pit started on http://{self.host}:{self.port}")
-        print(f" Targeting: {', '.join(self.config_manager.active_config.bot_types)}")
-        print(f" Keywords: {', '.join(self.config_manager.active_config.keywords[:5])}...")
-        print(f" Bait files: {sum(len(files) for files in self.bait_manager.bait_files.values())} available")
-        print(f" Interactive elements: {'Enabled' if self.config_manager.active_config.interactive_elements else 'Disabled'}")
-        print("\n Monitoring active. Bot interactions will appear below:")
-        print("="*60)
-        
         try:
-            self.server.serve_forever()
+            self.server = HTTPServer((self.host, self.port), handler)
+        except Exception as e:
+            print(f"ERROR: Failed to start server on port {self.port}: {e}")
+            return
+        
+        # Start ngrok tunnel if requested
+        if use_ngrok:
+            print(f"\n" + "="*60)
+            print(f"INITIALIZING NGrok TUNNEL")
+            print(f"="*60)
+            
+            # Check if ngrok is installed
+            if not self.ngrok_manager.is_ngrok_installed():
+                print(f"\nERROR: ngrok is not installed or not in PATH!")
+                print(f"Please install ngrok from: https://ngrok.com/download")
+                print(f"Then authenticate with: ngrok config add-authtoken YOUR_TOKEN")
+                use_ngrok = False
+            else:
+                self.public_url = self.ngrok_manager.start_tunnel(self.port)
+                
+                if self.public_url:
+                    print(f"\n" + "="*60)
+                    print(f"NGrok TUNNEL ESTABLISHED")
+                    print(f"="*60)
+                    print(f"Public URL: {self.public_url}")
+                    print(f"ngrok dashboard: http://localhost:4040")
+                    print(f"Access from any device/network!")
+                else:
+                    print(f"\nWARNING: Failed to start ngrok tunnel. Running locally only.")
+                    print(f"Try running ngrok manually: ngrok http {self.port}")
+                    self.public_url = None
+        
+        print(f"\n" + "="*60)
+        print(f"INTERACTIVE AI SCRAPER TAR PIT")
+        print(f"="*60)
+        print(f"Local URL: http://{self.host}:{self.port}")
+        if self.public_url:
+            print(f"Public URL: {self.public_url}")
+        print(f"Targeting: {', '.join(self.config_manager.active_config.bot_types)}")
+        print(f"Keywords: {', '.join(self.config_manager.active_config.keywords[:5])}...")
+        print(f"Bait files: {sum(len(files) for files in self.bait_manager.bait_files.values())} available")
+        print(f"Interactive: {'Enabled' if self.config_manager.active_config.interactive_elements else 'Disabled'}")
+        print(f"Status: http://{self.host}:{self.port}/status")
+        print(f"Test: http://{self.host}:{self.port}/test")
+        print(f"\nMonitoring active. Bot interactions will appear below:")
+        print(f"="*60)
+        
+        # Start server in background thread
+        self.server_thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.server_thread.start()
+        
+        # Keep main thread alive
+        try:
+            while True:
+                time.sleep(1)
+                # Check for ngrok updates if active
+                if use_ngrok and not self.ngrok_manager.is_tunnel_alive():
+                    print("WARNING: ngrok tunnel appears to be down. Attempting to restart...")
+                    self.public_url = self.ngrok_manager.start_tunnel(self.port)
+                    
         except KeyboardInterrupt:
             self.stop()
     
+    def find_available_port(self, start_port: int) -> int:
+        """Find an available port starting from start_port"""
+        port = start_port
+        max_attempts = 100
+        
+        for attempt in range(max_attempts):
+            if not is_port_in_use(port):
+                if port != start_port:
+                    print(f"Port {start_port} is in use, using port {port} instead")
+                return port
+            port += 1
+        
+        # If we can't find an available port, try a different range
+        port = 8080
+        for attempt in range(max_attempts):
+            if not is_port_in_use(port):
+                print(f"Using alternative port: {port}")
+                return port
+            port += 1
+        
+        return None
+    
+    def cleanup(self):
+        """Cleanup resources on exit"""
+        self.stop()
+    
     def stop(self):
-        """Stop the tar pit"""
+        """Stop the tar pit and cleanup"""
+        print("\nShutting down...")
+        
+        # Stop ngrok tunnel
+        if self.ngrok_manager:
+            self.ngrok_manager.stop()
+        
+        # Stop server
         if self.server:
             self.server.shutdown()
-        print("\n Server stopped")
-        print("\n Final Statistics:")
+        
+        print("\nFinal Statistics:")
         print(f"   Total Requests: {self.control_panel.stats['total_requests']}")
         print(f"   Bot Requests: {self.control_panel.stats['bot_requests']}")
         print(f"   Targeted Bots: {self.control_panel.stats['targeted_bots']}")
         print(f"   Downloads: {self.control_panel.stats.get('downloads', 0)}")
         
         if self.control_panel.stats['bot_types_detected']:
-            print("\n Bot Types Detected:")
+            print("\nBot Types Detected:")
             for bot_type, count in self.control_panel.stats['bot_types_detected'].items():
                 print(f"   {bot_type}: {count}")
+        
+        print("\nGoodbye!")
 
 # ============================================================================
-# ENHANCED CONFIGURATION WIZARD
+# ENHANCED CONFIGURATION WIZARD WITH NGrok SETUP
 # ============================================================================
 
 def enhanced_configuration_wizard():
-    """Interactive configuration wizard with new options"""
+    """Interactive configuration wizard with ngrok setup"""
     print("\n" + "="*60)
-    print(" AI SCRAPER TAR PIT - ENHANCED CONFIGURATION WIZARD")
+    print("AI SCRAPER TAR PIT - ENHANCED CONFIGURATION WIZARD")
     print("="*60)
     
     config = {}
     
     # Bot types
-    print("\n SELECT BOT TYPES TO TARGET:")
+    print("\nSELECT BOT TYPES TO TARGET:")
     bot_options = ["tiktok", "news", "shopping", "academic", "ai_trainer", "social"]
     for i, bot in enumerate(bot_options, 1):
         print(f"  {i}. {bot}")
@@ -1684,7 +2477,7 @@ def enhanced_configuration_wizard():
             print("Invalid input. Please enter numbers like '1,3,5'.")
     
     # Keywords
-    print("\n ENTER TARGETING KEYWORDS:")
+    print("\nENTER TARGETING KEYWORDS:")
     print("(These will attract specific bots to your tar pit)")
     
     suggestions = {
@@ -1712,7 +2505,7 @@ def enhanced_configuration_wizard():
             print("Keywords are required. Please enter some keywords.")
     
     # Interactive elements
-    print("\n INTERACTIVE ELEMENTS:")
+    print("\nINTERACTIVE ELEMENTS:")
     print("  1. Full interactive (buttons, forms, downloads, JavaScript)")
     print("  2. Limited interactive (buttons and links only)")
     print("  3. No interactive elements")
@@ -1721,7 +2514,7 @@ def enhanced_configuration_wizard():
     config['interactive_elements'] = interactive_choice != '3'
     
     # Bait files
-    print("\n BAIT FILE SETTINGS:")
+    print("\nBAIT FILE SETTINGS:")
     print("  1. Generate and serve bait files (PDF, CSV, JSON, XML, ZIP)")
     print("  2. Serve bait files only (no generation)")
     print("  3. No bait files")
@@ -1730,13 +2523,13 @@ def enhanced_configuration_wizard():
     config['bait_files_enabled'] = bait_choice != '3'
     
     # Download traps
-    print("\n DOWNLOAD TRAPS:")
+    print("\nDOWNLOAD TRAPS:")
     print("  Enable download traps that waste bot bandwidth? (y/n, default y): ")
     dl_choice = input().strip().lower()
     config['download_traps'] = dl_choice != 'n'
     
     # Trap intensity
-    print("\n TRAP INTENSITY:")
+    print("\nTRAP INTENSITY:")
     print("  1. Light (basic traps)")
     print("  2. Medium (recommended)")
     print("  3. Heavy (maximum recursion, deep traps)")
@@ -1757,15 +2550,15 @@ def enhanced_configuration_wizard():
     config['hidden_traps'] = True
     config['embed_tracking'] = True
     config['meta_tag_injection'] = True
-    config['user_uploads_enabled'] = False  # Would need proper implementation
+    config['user_uploads_enabled'] = False
     
     # Save configuration
     config_file = "bot_config.json"
     with open(config_file, 'w') as f:
         json.dump(config, f, indent=2)
     
-    print(f"\n Configuration saved to {config_file}")
-    print(f"\n SUMMARY:")
+    print(f"\nConfiguration saved to {config_file}")
+    print(f"\nSUMMARY:")
     print(f"   Target Bots: {', '.join(config['bot_types'])}")
     print(f"   Keywords: {', '.join(config['keywords'][:5])}...")
     print(f"   Interactive: {'Enabled' if config['interactive_elements'] else 'Disabled'}")
@@ -1799,21 +2592,23 @@ def create_default_config():
     with open("bot_config.json", 'w') as f:
         json.dump(default_config, f, indent=2)
     
-    print(" Created default configuration file: bot_config.json")
-    print(" Targeting: TikTok, AI Trainers, Social bots")
-    print(" Keywords: viral, trending, challenge, dance, music, ai, dataset, etc.")
-    print(" Interactive elements: Enabled")
-    print(" Bait files: Enabled")
+    print("Created default configuration file: bot_config.json")
+    print("Targeting: TikTok, AI Trainers, Social bots")
+    print("Keywords: viral, trending, challenge, dance, music, ai, dataset, etc.")
+    print("Interactive elements: Enabled")
+    print("Bait files: Enabled")
 
 # ============================================================================
-# MAIN ENTRY POINT
+# MAIN ENTRY POINT WITH NGrok SUPPORT
 # ============================================================================
 
 def main():
-    """Main entry point"""
-    parser = argparse.ArgumentParser(description=' Interactive AI Scraper Tar Pit')
+    """Main entry point with ngrok support"""
+    parser = argparse.ArgumentParser(description='Interactive AI Scraper Tar Pit with ngrok')
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind to (default: 0.0.0.0)')
     parser.add_argument('--port', type=int, default=8080, help='Port to listen on (default: 8080)')
+    parser.add_argument('--ngrok', action='store_true', help='Enable ngrok tunneling for public access')
+    parser.add_argument('--ngrok-token', type=str, help='ngrok auth token (or set in ngrok_config.json)')
     parser.add_argument('--wizard', action='store_true', help='Run enhanced configuration wizard')
     parser.add_argument('--quick', action='store_true', help='Quick start with default config')
     parser.add_argument('--test', action='store_true', help='Test bait file generation')
@@ -1823,10 +2618,10 @@ def main():
     args = parser.parse_args()
     
     print("\n" + "="*70)
-    print(" INTERACTIVE AI SCRAPER TAR PIT")
+    print("INTERACTIVE AI SCRAPER TAR PIT WITH NGrok")
     print("="*70)
-    print("Enhanced tool with interactive elements and bait files")
-    print("Educational use only - by ek0ms savi0r")
+    print("Enhanced tool with ngrok tunneling, interactive elements and bait files")
+    print("Educational use only")
     print("="*70)
     
     if args.default:
@@ -1834,56 +2629,79 @@ def main():
         return
     
     if args.test:
-        print("\n Testing bait file generation...")
+        print("\nTesting bait file generation...")
         bait_manager = BaitContentManager()
-        print(f" Generated {sum(len(files) for files in bait_manager.bait_files.values())} bait files")
+        print(f"Generated {sum(len(files) for files in bait_manager.bait_files.values())} bait files")
         return
     
     if args.wizard:
         enhanced_configuration_wizard()
-        print("\n Configuration complete! Run without --wizard to start the server.")
+        print("\nConfiguration complete! Run without --wizard to start the server.")
         choice = input("\nStart server now? (y/n): ").strip().lower()
         if choice == 'y':
-            tar_pit = InteractiveTarPit(args.host, args.port)
-            tar_pit.start()
+            # Check for ngrok config
+            ngrok_token = args.ngrok_token
+            if not ngrok_token and os.path.exists("ngrok_config.json"):
+                with open("ngrok_config.json", 'r') as f:
+                    ngrok_config = json.load(f)
+                    ngrok_token = ngrok_config.get('auth_token')
+            
+            use_ngrok = input("Enable ngrok tunneling? (y/n, default y): ").strip().lower() != 'n'
+            
+            tar_pit = InteractiveTarPit(args.host, args.port, ngrok_token)
+            tar_pit.start(use_ngrok=use_ngrok)
         return
     
     if args.quick:
-        print("\n Quick starting with default configuration...")
-        print(" Targeting: TikTok, AI trainers, Social bots")
-        print(" Interactive elements: Enabled")
-        print(" Bait files: Enabled")
+        print("\nQuick starting with default configuration...")
+        print("Targeting: TikTok, AI trainers, Social bots")
+        print("Interactive elements: Enabled")
+        print("Bait files: Enabled")
         print("="*60)
         
         # Create default config if it doesn't exist
         if not os.path.exists("bot_config.json"):
             create_default_config()
         
-        tar_pit = InteractiveTarPit(args.host, args.port)
-        tar_pit.start()
+        # Check for ngrok config
+        ngrok_token = args.ngrok_token
+        if not ngrok_token and os.path.exists("ngrok_config.json"):
+            with open("ngrok_config.json", 'r') as f:
+                ngrok_config = json.load(f)
+                ngrok_token = ngrok_config.get('auth_token')
+        
+        # Use ngrok if token is available or explicitly requested
+        use_ngrok = args.ngrok or (ngrok_token is not None)
+        
+        tar_pit = InteractiveTarPit(args.host, args.port, ngrok_token)
+        tar_pit.start(use_ngrok=use_ngrok)
         return
     
     # Check if config exists
     if not os.path.exists("bot_config.json"):
-        print("\n  No configuration found!")
+        print("\nWARNING: No configuration found!")
         print("Run one of these commands first:")
         print("  python3 tarpit.py --wizard    # Interactive setup")
         print("  python3 tarpit.py --quick     # Quick default config")
         print("  python3 tarpit.py --default   # Create default config")
         return
     
-    # Start the tar pit
-    print(f"\n Starting Interactive AI Scraper Tar Pit on http://{args.host}:{args.port}")
-    print("Press Ctrl+C to stop\n")
+    # Load ngrok token from config file or command line
+    ngrok_token = args.ngrok_token
+    if not ngrok_token and os.path.exists("ngrok_config.json"):
+        with open("ngrok_config.json", 'r') as f:
+            ngrok_config = json.load(f)
+            ngrok_token = ngrok_config.get('auth_token')
     
-    tar_pit = InteractiveTarPit(args.host, args.port)
+    # Start the tar pit
+    tar_pit = InteractiveTarPit(args.host, args.port, ngrok_token)
     
     try:
-        tar_pit.start()
+        tar_pit.start(use_ngrok=(args.ngrok or ngrok_token is not None))
     except KeyboardInterrupt:
-        print("\n Goodbye!")
+        print("\nGoodbye!")
     except Exception as e:
-        print(f"\n Error: {e}")
+        print(f"\nERROR: {e}")
         import traceback
         traceback.print_exc()
         print("\nTry running with --quick to create a default config first.")
@@ -1896,5 +2714,5 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print("\n Goodbye!")
+        print("\nGoodbye!")
         sys.exit(0)
