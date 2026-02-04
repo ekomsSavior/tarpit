@@ -170,34 +170,16 @@ http://your-server:8080/upload/
 tarpit/bait_files/uploaded/
 ```
 
-## ngrok Integration
-
-### Getting Started with ngrok
-1. **Sign up at [ngrok.com](https://ngrok.com)**
-2. **Get your auth token** from the dashboard
-3. **Configure ngrok** with one of these methods:
-
-**Method A: Save token in ngrok_config.json**
-```json
-{
-  "auth_token": "YOUR_NGROK_AUTH_TOKEN_HERE"
-}
-```
-
-**Method B: Use command line**
-```bash
-# Save token globally
-ngrok config add-authtoken YOUR_TOKEN
-
-# Or pass via command line
-python3 tarpit.py --quick --ngrok --ngrok-token YOUR_TOKEN
-```
-
 ### Using the Public URL
 When ngrok is enabled:
 1. **Local access**: http://localhost:8080
 2. **Public access**: https://your-random-subdomain.ngrok.io
 3. **Dashboard**: http://localhost:4040 (ngrok metrics)
+
+### See what the bots see:
+```bash
+curl -s -A "GPTBot" http://localhost:8080/ | head -200         #adjust port for your server
+```
 
 ### Tunnel Management
 - **Automatic monitoring**: Tunnel health is checked every 30 seconds
