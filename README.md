@@ -116,18 +116,15 @@ pip install beautifulsoup4 requests --break-system-packages
 chmod +x tarpit.py
 ```
 
-### Optional: Install ngrok for Public Access
+### Install ngrok
 ```bash
-# Download ngrok (Linux/Mac)
-curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
-echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
-sudo apt update && sudo apt install ngrok
+# Download and install ngrok
+wget https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
+tar -xvzf ngrok-v3-stable-linux-amd64.tgz
+sudo mv ngrok /usr/local/bin/
 
-# Or download directly
-# Visit: https://ngrok.com/download
-
-# Authenticate ngrok (get token from ngrok.com)
-ngrok config add-authtoken YOUR_AUTH_TOKEN
+# Set up authentication
+ngrok config add-authtoken YOUR_NGROK_AUTH_TOKEN
 ```
 
 ## Usage
