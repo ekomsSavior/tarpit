@@ -57,8 +57,8 @@ class NgrokManager:
         self.process = None
         self.public_url = None
         self.api_url = "http://localhost:4040/api"
-        self.setup_ngrok_config()
         self.tunnel_start_time = None
+        self.setup_ngrok_config()
     
     def setup_ngrok_config(self):
         """Setup ngrok configuration file"""
@@ -70,12 +70,6 @@ class NgrokManager:
             
             # Check if auth token is valid
             if self.auth_token:
-                # Test the auth token
-                test_cmd = ["ngrok", "config", "check"]
-                result = subprocess.run(test_cmd, capture_output=True, text=True)
-                if result.returncode != 0:
-                    logger.warning("ngrok config check failed, auth token might be invalid")
-                
                 # Update config with auth token
                 config_cmd = ["ngrok", "config", "add-authtoken", self.auth_token]
                 result = subprocess.run(config_cmd, capture_output=True, text=True)
@@ -1247,11 +1241,11 @@ def find_available_port(start_port: int = 8080, max_attempts: int = 100) -> Opti
     return None
 
 # ============================================================================
-# ENHANCED REQUEST HANDLER WITH INTERACTIVE ELEMENTS
+# ENHANCED REQUEST HANDLER WITH INTERACTIVE ELEMENTS - FIXED VERSION
 # ============================================================================
 
 class InteractiveTarPitHandler(BaseHTTPRequestHandler):
-    """Enhanced HTTP handler with interactive elements and bait files"""
+    """Enhanced HTTP handler with interactive elements and bait files - FIXED"""
     
     def __init__(self, *args, 
                  content_gen=None, 
@@ -1285,13 +1279,14 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         user_agent = self.headers.get('User-Agent', '')
         bot_type = self.config_manager.detect_bot_type(user_agent, self.path)
         
-        # Check if it's a bot
+        # Check if it's a bot (anything not "generic" is a bot)
         is_bot = bot_type != "generic"
         
         if is_bot and self.control_panel:
             self.control_panel.stats["bot_requests"] += 1
             self.control_panel.stats["bot_types_detected"][bot_type] += 1
             self.control_panel.stats["last_request"] = f"{bot_type} at {datetime.now().strftime('%H:%M:%S')}"
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} detected - {self.path}")
         
         # Handle special paths
         if self.path.startswith('/download/'):
@@ -1315,27 +1310,376 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         elif self.path == '/test':
             self.handle_test_page()
             return
+        elif self.path.startswith('/trap/'):
+            self.handle_trap_page(bot_type, is_bot)
+            return
+        elif self.path.startswith('/data/'):
+            self.handle_data_page(bot_type, is_bot)
+            return
         
-        # Generate targeted response
-        response = self.generate_targeted_response(bot_type, is_bot)
+        # ROOT PATH - Show different content based on visitor type
+        if self.path == '/' or self.path == '':
+            if is_bot:
+                # Bots get enticing trap content
+                self.handle_bot_landing_page(bot_type)
+            else:
+                # Humans get simple research portal
+                self.handle_human_landing_page()
+            return
         
-        # Send response
-        self.send_response(200)
-        self.send_header('Content-type', response['content_type'])
+        # All other non-special paths - show 404
+        self.send_response(404)
+        self.send_header('Content-type', 'text/html')
         self.end_headers()
+        self.wfile.write(f"""
+        <!DOCTYPE html>
+        <html>
+        <head><title>404 - Page Not Found</title></head>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h1>404 - Page Not Found</h1>
+            <p>The requested path <code>{self.path}</code> does not exist.</p>
+            <p><a href="/">Return to Home</a></p>
+        </body>
+        </html>
+        """.encode('utf-8'))
+    
+    def handle_bot_landing_page(self, bot_type: str):
+        """Handle landing page for bots - rich, enticing content"""
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Serving BOT landing page to {bot_type}")
         
-        if isinstance(response['content'], bytes):
-            self.wfile.write(response['content'])
-        else:
-            self.wfile.write(response['content'].encode('utf-8'))
+        # Generate rich content for this bot type
+        content = self.content_gen.generate_targeted_content(bot_type)
         
-        # Log
-        response_time = time.time() - start_time
-        logger.info(f"Bot: {bot_type} | Path: {self.path} | Time: {response_time:.2f}s")
+        # Check if this is a targeted bot type
+        is_targeted = bot_type in self.config_manager.active_config.bot_types
         
-        # Print to console
-        if is_bot:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} detected - {self.path}")
+        if is_targeted and self.control_panel:
+            self.control_panel.stats["targeted_bots"] += 1
+        
+        # Generate HTML with traps
+        html = self.wrap_bot_content_with_traps(content, bot_type, is_targeted)
+        
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(html.encode('utf-8'))
+    
+    def wrap_bot_content_with_traps(self, content: Dict, bot_type: str, is_targeted: bool) -> str:
+        """Wrap bot content with traps - SIMPLIFIED VERSION"""
+        
+        # Create a rich, enticing page for bots
+        keywords = content['keywords']
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>{content['title']}</title>
+            <meta name="description" content="Exclusive {', '.join(keywords[:3])} content available for download">
+            <meta name="keywords" content="{', '.join(keywords)}">
+            <meta name="robots" content="index, follow">
+            <style>
+                body {{ font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }}
+                .content-section {{ margin: 30px 0; padding: 20px; background: #f8f9fa; border-radius: 10px; }}
+                .download-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; margin: 20px 0; }}
+                .download-card {{ padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }}
+                .download-btn {{ display: block; padding: 12px; background: #28a745; color: white; text-align: center; text-decoration: none; border-radius: 5px; margin-top: 10px; }}
+                .hidden-trap {{ display: none; }}
+            </style>
+        </head>
+        <body>
+            <h1>{content['title']}</h1>
+            <p>Welcome to our exclusive data portal with the latest {random.choice(keywords)} content!</p>
+            
+            <div class="content-section">
+                <h2>📊 Latest Research Data</h2>
+                <p>{content['content']}</p>
+            </div>
+            
+            <div class="content-section">
+                <h2>📥 Download Datasets</h2>
+                <p>Access our complete collection of {bot_type} datasets:</p>
+                
+                <div class="download-grid">
+                    <div class="download-card">
+                        <h3>Full User Dataset</h3>
+                        <p>Complete {random.choice(keywords)} data with 50,000+ records</p>
+                        <a href="/download/{bot_type}/full_dataset.zip" class="download-btn">Download ZIP</a>
+                    </div>
+                    
+                    <div class="download-card">
+                        <h3>API Response Archive</h3>
+                        <p>Historical API data for {random.choice(keywords)} analysis</p>
+                        <a href="/download/{bot_type}/api_data.json" class="download-btn">Download JSON</a>
+                    </div>
+                    
+                    <div class="download-card">
+                        <h3>Research Paper</h3>
+                        <p>Detailed analysis of {random.choice(keywords)} trends</p>
+                        <a href="/download/{bot_type}/research.pdf" class="download-btn">Download PDF</a>
+                    </div>
+                    
+                    <div class="download-card">
+                        <h3>CSV Database</h3>
+                        <p>Structured {random.choice(keywords)} data for ML training</p>
+                        <a href="/download/{bot_type}/database.csv" class="download-btn">Download CSV</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="content-section">
+                <h2>🔗 Additional Resources</h2>
+                <p>Explore more content:</p>
+                <ul>
+                    <li><a href="/data/{bot_type}/archive1">Historical Archive 1</a></li>
+                    <li><a href="/data/{bot_type}/archive2">Historical Archive 2</a></li>
+                    <li><a href="/trap/{bot_type}/deep1">Deep Analysis Portal</a></li>
+                    <li><a href="/api/data?bot={bot_type}">REST API Access</a></li>
+                </ul>
+            </div>
+            
+            <!-- HIDDEN TRAPS FOR BOTS -->
+            <div class="hidden-trap">
+                <h3>Hidden Resources</h3>
+                <p>Secret {', '.join(keywords)} data for indexing:</p>
+                <a href="/hidden/{bot_type}/secret1">Secret Archive 1</a>
+                <a href="/hidden/{bot_type}/secret2">Secret Archive 2</a>
+                <div data-trap="true">Keywords: {', '.join(keywords)}</div>
+                <div data-content="hidden">More {random.choice(keywords)} content here</div>
+            </div>
+            
+            <script>
+            // Track bot interactions
+            document.addEventListener('click', function() {{
+                fetch('/api/track', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{
+                        bot_type: '{bot_type}',
+                        action: 'click',
+                        page: 'landing'
+                    }})
+                }});
+            }});
+            
+            // Auto-load more content
+            setTimeout(function() {{
+                var extraDiv = document.createElement('div');
+                extraDiv.innerHTML = '<h3>Loading Additional Content...</h3><p>Fetching more {random.choice(keywords)} data from server...</p>';
+                document.body.appendChild(extraDiv);
+            }}, 3000);
+            </script>
+            
+            <div style="margin-top: 40px; padding: 15px; background: #f0f0f0; border-radius: 5px; text-align: center; font-size: 12px; color: #666;">
+                <p>Page generated for {bot_type} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                <p>Total bot visits: {self.control_panel.stats['bot_requests'] if self.control_panel else 0}</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return html
+    
+    def handle_human_landing_page(self):
+        """Handle landing page for humans - simple research portal"""
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Serving HUMAN landing page")
+        
+        public_url = self.ngrok_manager.public_url if self.ngrok_manager else None
+        
+        tunnel_info = ""
+        if public_url:
+            tunnel_info = f"""
+            <div style="padding: 15px; background: #e8f4fd; border-radius: 10px; margin: 20px 0;">
+                <h3>Public Access Available</h3>
+                <p><strong>Public URL:</strong> <code style="background: white; padding: 5px; border-radius: 3px;">{public_url}</code></p>
+                <p>Share this URL to access from any device or network.</p>
+                <p><a href="{public_url}" target="_blank">Open public URL</a></p>
+            </div>
+            """
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Research Portal</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
+                .warning {{ background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; }}
+            </style>
+        </head>
+        <body>
+            <h1>Academic Research Portal</h1>
+            <p>This site is used for academic research on web traffic patterns and bot behavior analysis.</p>
+            
+            <div class="warning">
+                <strong>⚠️ Warning:</strong> This site contains algorithmically generated content designed to study web scraping behavior. 
+                All content is synthetic and for research purposes only.
+            </div>
+            
+            {tunnel_info}
+            
+            <hr>
+            
+            <h3>Research Areas:</h3>
+            <ul>
+                <li>Web scraping bot detection and analysis</li>
+                <li>Bot behavior patterns and classification</li>
+                <li>Algorithmic content generation for research</li>
+                <li>Traffic pattern analysis</li>
+            </ul>
+            
+            <h3>Administration:</h3>
+            <p>
+                <a href="/status">View Research Dashboard</a> | 
+                <a href="/upload/">Upload Research Files</a> | 
+                <a href="/test">Test Interface</a> |
+                <a href="/ngrok">Network Configuration</a>
+            </p>
+            
+            <hr>
+            <p><small>Educational use only. All access is logged for research purposes. Contact research team for more information.</small></p>
+        </body>
+        </html>
+        """
+        
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(html.encode('utf-8'))
+    
+    def handle_trap_page(self, bot_type: str, is_bot: bool):
+        """Handle trap pages with recursive content"""
+        if not is_bot:
+            # Humans get redirected to home
+            self.send_response(302)
+            self.send_header('Location', '/')
+            self.end_headers()
+            return
+        
+        # Generate deep trap content
+        content = self.content_gen.generate_targeted_content(bot_type)
+        content['title'] = f"Deep Data Archive: {random.choice(content['keywords']).title()}"
+        
+        # Add more traps for deep pages
+        content['traps']['hidden_divs'].extend([
+            f'<div style="display:none;" data-deep-trap="1">Archive depth: {random.randint(1, 100)}</div>',
+            f'<div style="display:none;" data-deep-trap="2">Data repository index {random.randint(1000, 9999)}</div>',
+            '<div style="display:none;">' + ' '.join([f'data-{i}="{random.randint(1000, 9999)}"' for i in range(10)]) + '</div>'
+        ])
+        
+        # Add more download links
+        for i in range(5):
+            file_type = random.choice(['pdf', 'csv', 'json', 'xml', 'zip'])
+            keyword = random.choice(content['keywords'])
+            content['traps']['infinite_links'].append(
+                f'<a href="/download/{bot_type}/archive_{random.randint(1000, 9999)}.{file_type}" style="display:none;">Archive {i}</a>'
+            )
+        
+        html = self.wrap_content_with_traps(content, bot_type, True)
+        
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(html.encode('utf-8'))
+    
+    def handle_data_page(self, bot_type: str, is_bot: bool):
+        """Handle data pages with fake datasets"""
+        if not is_bot:
+            self.send_response(302)
+            self.send_header('Location', '/')
+            self.end_headers()
+            return
+        
+        # Create a data listing page
+        keywords = self.config_manager.active_config.keywords
+        page_html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Research Data Repository</title>
+            <style>
+                body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+                .dataset { padding: 20px; margin: 15px 0; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #007bff; }
+                .download-btn { padding: 8px 16px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; display: inline-block; }
+            </style>
+        </head>
+        <body>
+            <h1>Research Data Repository</h1>
+            <p>This repository contains datasets for machine learning training and research purposes.</p>
+            
+            <div style="background: #e8f4fd; padding: 20px; border-radius: 10px; margin: 20px 0;">
+                <h3>⚠️ Important Notice</h3>
+                <p>All datasets in this repository are algorithmically generated for research purposes only.</p>
+                <p>They do not contain real user data or sensitive information.</p>
+            </div>
+            
+            <h2>Available Datasets</h2>
+        """
+        
+        # Add dataset listings
+        for i in range(15):
+            keyword = random.choice(keywords)
+            file_type = random.choice(['CSV', 'JSON', 'XML', 'TXT', 'ZIP'])
+            size = random.choice(['1.2 MB', '4.7 MB', '15.3 MB', '28.9 MB', '102.4 MB'])
+            records = random.choice(['10,000', '50,000', '100,000', '500,000', '1,000,000'])
+            
+            page_html += f"""
+            <div class="dataset">
+                <h3>{keyword.title()} Dataset v{random.randint(1, 5)}.{random.randint(0, 9)}</h3>
+                <p>Contains {records} records of {keyword} related data for training and analysis.</p>
+                <p><strong>Format:</strong> {file_type} | <strong>Size:</strong> {size} | <strong>Updated:</strong> {random.randint(1, 30)} days ago</p>
+                <p><strong>Description:</strong> This dataset contains synthetic {keyword} data generated for machine learning research and bot behavior analysis.</p>
+                <a href="/download/{bot_type}/{keyword}_dataset_{i}.{file_type.lower()}" class="download-btn">Download Dataset</a>
+                <a href="/trap/{bot_type}/metadata_{i}" style="margin-left: 10px; color: #0066cc;">View Metadata</a>
+            </div>
+            """
+        
+        # Add hidden traps
+        page_html += """
+            <div style="display:none;">
+                <h3>Additional Resources</h3>
+        """
+        
+        for i in range(10):
+            page_html += f'<a href="/data/{bot_type}/resource_{i}">Hidden Resource {i}</a><br>'
+        
+        page_html += """
+            </div>
+            
+            <script>
+            // Auto-load more content for bots
+            setTimeout(function() {
+                var moreContent = document.createElement('div');
+                moreContent.innerHTML = '<h3>Additional Datasets Loaded</h3><p>Loading more research data...</p>';
+                document.body.appendChild(moreContent);
+                
+                // Simulate loading more datasets
+                setTimeout(function() {
+                    moreContent.innerHTML = '<h3>Additional Datasets</h3><p>25 more datasets loaded from archive. <a href="/data/' + bot_type + '/page2">View Next Page</a></p>';
+                }, 2000);
+            }, 3000);
+            
+            // Track bot interaction
+            document.addEventListener('click', function() {
+                fetch('/api/analytics/track', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        event: 'dataset_browse',
+                        bot_type: '""" + bot_type + """',
+                        timestamp: new Date().toISOString()
+                    })
+                });
+            });
+            </script>
+        </body>
+        </html>
+        """
+        
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(page_html.encode('utf-8'))
     
     def do_POST(self):
         """Handle POST requests (for forms, uploads, etc.)"""
@@ -1611,6 +1955,11 @@ All content is synthetic and does not represent real information.
                     text-align: center; 
                     margin: 20px 0;
                     border-radius: 10px;
+                    transition: all 0.3s;
+                }
+                .upload-area:hover { 
+                    border-color: #007bff; 
+                    background: #f0f8ff; 
                 }
                 .file-list { margin-top: 30px; }
                 .file-item { 
@@ -1619,6 +1968,16 @@ All content is synthetic and does not represent real information.
                     background: #f8f9fa; 
                     border-radius: 5px;
                 }
+                .remove-btn {
+                    background: #dc3545;
+                    color: white;
+                    border: none;
+                    border-radius: 50%;
+                    width: 24px;
+                    height: 24px;
+                    cursor: pointer;
+                    font-weight: bold;
+                }
             </style>
         </head>
         <body>
@@ -1626,13 +1985,13 @@ All content is synthetic and does not represent real information.
             <p>Upload files that will be served to bots as bait.</p>
             
             <form id="uploadForm" enctype="multipart/form-data">
-                <div class="upload-area">
+                <div class="upload-area" id="dropArea">
                     <input type="file" id="fileInput" name="file" multiple style="display: none;">
                     <button type="button" onclick="document.getElementById('fileInput').click()" 
-                            style="padding: 15px 30px; font-size: 16px; cursor: pointer;">
+                            style="padding: 15px 30px; font-size: 16px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px;">
                         Select Files
                     </button>
-                    <p>or drag and drop files here</p>
+                    <p style="margin-top: 10px; color: #666;">or drag and drop files here</p>
                     <div id="selectedFiles"></div>
                 </div>
                 <button type="submit" style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">
@@ -1646,25 +2005,96 @@ All content is synthetic and does not represent real information.
             </div>
             
             <script>
-            document.getElementById('fileInput').addEventListener('change', function(e) {
-                const files = e.target.files;
-                const selectedFiles = document.getElementById('selectedFiles');
-                selectedFiles.innerHTML = '';
+            document.getElementById('fileInput').addEventListener('change', updateFileList);
+            document.getElementById('uploadForm').addEventListener('submit', handleFormSubmit);
+            
+            // Drag and drop functionality
+            const dropArea = document.getElementById('dropArea');
+            dropArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropArea.style.borderColor = '#007bff';
+                dropArea.style.background = '#f0f8ff';
+            });
+            
+            dropArea.addEventListener('dragleave', (e) => {
+                dropArea.style.borderColor = '#ccc';
+                dropArea.style.background = '';
+            });
+            
+            dropArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropArea.style.borderColor = '#ccc';
+                dropArea.style.background = '';
                 
-                for(let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    const div = document.createElement('div');
-                    div.className = 'file-item';
-                    div.textContent = `${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
-                    selectedFiles.appendChild(div);
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    document.getElementById('fileInput').files = files;
+                    updateFileList();
                 }
             });
             
-            document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            // Click to upload
+            dropArea.addEventListener('click', () => {
+                document.getElementById('fileInput').click();
+            });
+            
+            function updateFileList() {
+                const files = document.getElementById('fileInput').files;
+                const selectedFiles = document.getElementById('selectedFiles');
+                selectedFiles.innerHTML = '';
+                
+                if (files.length === 0) {
+                    selectedFiles.innerHTML = '<p style="color:#666; font-style:italic;">No files selected</p>';
+                    return;
+                }
+                
+                const list = document.createElement('ul');
+                list.style.listStyle = 'none';
+                list.style.padding = '0';
+                
+                for(let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const li = document.createElement('li');
+                    li.className = 'file-item';
+                    li.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin: 5px 0;">
+                            <div>
+                                <strong>${file.name}</strong>
+                                <br>
+                                <small>${(file.size / 1024).toFixed(2)} KB • ${file.type || 'Unknown type'}</small>
+                            </div>
+                            <button type="button" onclick="removeFile(${i})" class="remove-btn">×</button>
+                        </div>
+                    `;
+                    list.appendChild(li);
+                }
+                
+                selectedFiles.appendChild(list);
+            }
+            
+            function removeFile(index) {
+                const fileInput = document.getElementById('fileInput');
+                const files = Array.from(fileInput.files);
+                files.splice(index, 1);
+                
+                // Create new FileList
+                const dataTransfer = new DataTransfer();
+                files.forEach(file => dataTransfer.items.add(file));
+                fileInput.files = dataTransfer.files;
+                
+                updateFileList();
+            }
+            
+            async function handleFormSubmit(e) {
                 e.preventDefault();
                 const files = document.getElementById('fileInput').files;
-                const formData = new FormData();
                 
+                if (files.length === 0) {
+                    alert('Please select at least one file to upload.');
+                    return;
+                }
+                
+                const formData = new FormData();
                 for(let i = 0; i < files.length; i++) {
                     formData.append('files', files[i]);
                 }
@@ -1675,33 +2105,58 @@ All content is synthetic and does not represent real information.
                         body: formData
                     });
                     
+                    const result = await response.json();
+                    
                     if(response.ok) {
-                        alert('Files uploaded successfully!');
+                        alert(`Successfully uploaded ${result.files ? result.files.length : 0} files!`);
                         loadBaitFiles();
+                        // Clear file input
+                        document.getElementById('fileInput').value = '';
+                        document.getElementById('selectedFiles').innerHTML = '<p style="color:#666; font-style:italic;">No files selected</p>';
                     } else {
-                        alert('Upload failed');
+                        alert(`Upload failed: ${result.message || 'Unknown error'}`);
                     }
                 } catch(error) {
                     alert('Upload error: ' + error);
                 }
-            });
+            }
             
             async function loadBaitFiles() {
                 try {
                     const response = await fetch('/bait/list');
-                    const files = await response.json();
+                    const data = await response.json();
                     const list = document.getElementById('baitFilesList');
                     list.innerHTML = '';
                     
-                    files.forEach(file => {
-                        const div = document.createElement('div');
-                        div.className = 'file-item';
-                        div.innerHTML = `<strong>${file.name}</strong> (${file.type}, ${(file.size / 1024).toFixed(2)} KB)<br>
-                                        <small>Uploaded: ${new Date(file.uploaded).toLocaleString()}</small>`;
-                        list.appendChild(div);
-                    });
+                    if (data.files && data.files.length > 0) {
+                        data.files.forEach(file => {
+                            const div = document.createElement('div');
+                            div.className = 'file-item';
+                            div.innerHTML = `
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong>${file.name}</strong>
+                                        <br>
+                                        <small>${file.type.toUpperCase()} • ${(file.size / 1024).toFixed(2)} KB</small>
+                                        <br>
+                                        <small style="color: #666;">Uploaded: ${new Date(file.uploaded).toLocaleString()}</small>
+                                    </div>
+                                    <div>
+                                        <a href="/download/bait/${file.name}" 
+                                           style="padding: 5px 10px; background: #28a745; color: white; text-decoration: none; border-radius: 3px; font-size: 12px;">
+                                            Download
+                                        </a>
+                                    </div>
+                                </div>
+                            `;
+                            list.appendChild(div);
+                        });
+                    } else {
+                        list.innerHTML = '<p style="color:#666; font-style:italic;">No bait files uploaded yet.</p>';
+                    }
                 } catch(error) {
                     console.error('Failed to load bait files:', error);
+                    document.getElementById('baitFilesList').innerHTML = '<p style="color:#dc3545;">Error loading bait files list.</p>';
                 }
             }
             
@@ -1718,19 +2173,97 @@ All content is synthetic and does not represent real information.
         self.wfile.write(html.encode('utf-8'))
     
     def handle_file_upload(self, post_data: bytes):
-        """Handle actual file upload (simplified - would need multipart parsing)"""
-        # Simplified version - in real implementation would parse multipart/form-data
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        
-        response = {
-            "status": "success",
-            "message": "File upload endpoint - implement multipart parsing for full functionality",
-            "note": "See Python's cgi module for multipart form parsing"
-        }
-        
-        self.wfile.write(json.dumps(response).encode('utf-8'))
+        """Handle actual file upload with proper multipart parsing"""
+        try:
+            content_type = self.headers.get('Content-Type', '')
+            
+            if 'multipart/form-data' not in content_type:
+                self.send_error(400, "Invalid content type")
+                return
+            
+            # Parse the boundary from Content-Type
+            boundary = None
+            for part in content_type.split(';'):
+                if 'boundary=' in part:
+                    boundary = '--' + part.split('boundary=')[1].strip()
+                    break
+            
+            if not boundary:
+                self.send_error(400, "No boundary found")
+                return
+            
+            # Parse multipart data
+            files = []
+            parts = post_data.split(boundary.encode())
+            
+            for part in parts:
+                if not part or b'--\r\n' in part:  # Skip empty parts or end boundary
+                    continue
+                
+                # Parse headers and content
+                header_end = part.find(b'\r\n\r\n')
+                if header_end == -1:
+                    continue
+                    
+                headers_raw = part[:header_end]
+                body = part[header_end + 4:-2]  # Skip \r\n\r\n and trailing \r\n
+                
+                # Parse headers
+                headers = {}
+                for line in headers_raw.split(b'\r\n'):
+                    if b': ' in line:
+                        key, value = line.split(b': ', 1)
+                        headers[key.decode().lower()] = value.decode()
+                
+                # Check if this part contains a file
+                if 'content-disposition' in headers:
+                    cd = headers['content-disposition']
+                    if 'filename=' in cd:
+                        # Extract filename
+                        filename_match = re.search(r'filename="([^"]+)"', cd)
+                        if filename_match:
+                            filename = filename_match.group(1)
+                            
+                            # Save the file
+                            filepath = os.path.join(self.bait_manager.uploaded_dir, filename)
+                            with open(filepath, 'wb') as f:
+                                f.write(body)
+                            
+                            # Add to bait manager
+                            ext = os.path.splitext(filename)[1].lower().replace('.', '')
+                            if ext in self.bait_manager.bait_files:
+                                self.bait_manager.bait_files[ext].append({
+                                    "name": filename,
+                                    "path": filepath,
+                                    "size": len(body),
+                                    "upload_time": time.time()
+                                })
+                            
+                            files.append({
+                                "name": filename,
+                                "size": len(body),
+                                "saved": True
+                            })
+            
+            # Send success response
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            
+            response = {
+                "status": "success",
+                "message": f"Uploaded {len(files)} files",
+                "files": files
+            }
+            
+            self.wfile.write(json.dumps(response).encode('utf-8'))
+            
+            logger.info(f"Uploaded {len(files)} bait files")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Uploaded {len(files)} bait files")
+            
+        except Exception as e:
+            logger.error(f"Upload error: {e}")
+            self.send_error(500, f"Upload failed: {str(e)}")
     
     def handle_bait_files(self):
         """Handle bait files listing"""
@@ -2054,16 +2587,16 @@ All content is synthetic and does not represent real information.
         return mime_types.get(ext, 'application/octet-stream')
     
     def generate_targeted_response(self, bot_type: str, is_bot: bool) -> Dict:
-        """Generate response targeted to bot type"""
+        """Generate response targeted to bot type - SIMPLIFIED FIXED VERSION"""
         
+        # Always show human page for non-bots
         if not is_bot:
-            # Human visitor - show simple page
             return {
                 'content_type': 'text/html',
                 'content': self.generate_human_page()
             }
         
-        # Bot detected - generate targeted content
+        # For bots, generate trap content
         content = self.content_gen.generate_targeted_content(bot_type)
         
         # Check if this is a targeted bot type
@@ -2082,39 +2615,18 @@ All content is synthetic and does not represent real information.
     
     def generate_human_page(self) -> str:
         """Generate page for human visitors"""
-        public_url = self.ngrok_manager.public_url if self.ngrok_manager else None
-        
-        tunnel_info = ""
-        if public_url:
-            tunnel_info = f"""
-            <div style="padding: 15px; background: #e8f4fd; border-radius: 10px; margin: 20px 0;">
-                <h3>Public Access Available</h3>
-                <p><strong>Public URL:</strong> <code style="background: white; padding: 5px; border-radius: 3px;">{public_url}</code></p>
-                <p>Share this URL to access from any device or network.</p>
-                <p><a href="{public_url}" target="_blank">Open public URL</a></p>
-            </div>
-            """
-        
-        return f"""
+        return """
         <!DOCTYPE html>
         <html>
-        <head><title>Research Site</title></head>
+        <head><title>Research Portal</title></head>
         <body style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
-            <h1>Welcome to the Research Portal</h1>
-            <p>This site is used for academic research on web traffic patterns.</p>
+            <h1>Research Portal</h1>
+            <p>This site is used for academic research on web traffic patterns and bot behavior.</p>
             <p>For more information, please contact the research team.</p>
-            
-            {tunnel_info}
             
             <hr>
             <p><small>Educational use only. All access is logged for research purposes.</small></p>
-            <p>
-                <a href="/upload/">Upload bait files</a> | 
-                <a href="/bait/list">View bait files</a> | 
-                <a href="/status">View status dashboard</a> | 
-                <a href="/ngrok">ngrok tunnel info</a> |
-                <a href="/test">Test page</a>
-            </p>
+            <p><a href="/status">View Research Dashboard</a></p>
         </body>
         </html>
         """
