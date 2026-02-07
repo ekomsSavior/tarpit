@@ -1331,17 +1331,21 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         self.send_response(404)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
-        self.wfile.write(f"""
-        <!DOCTYPE html>
-        <html>
-        <head><title>404 - Page Not Found</title></head>
-        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-            <h1>404 - Page Not Found</h1>
-            <p>The requested path <code>{self.path}</code> does not exist.</p>
-            <p><a href="/">Return to Home</a></p>
-        </body>
-        </html>
-        """.encode('utf-8'))
+        try:
+            self.wfile.write(f"""
+            <!DOCTYPE html>
+            <html>
+            <head><title>404 - Page Not Found</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+                <h1>404 - Page Not Found</h1>
+                <p>The requested path <code>{self.path}</code> does not exist.</p>
+                <p><a href="/">Return to Home</a></p>
+            </body>
+            </html>
+            """.encode('utf-8'))
+        except BrokenPipeError:
+            # Client disconnected before we could send response
+            pass
     
     def handle_bot_landing_page(self, bot_type: str):
         """Handle landing page for bots - rich, enticing content"""
@@ -1362,13 +1366,30 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
-        self.wfile.write(html.encode('utf-8'))
+        try:
+            self.wfile.write(html.encode('utf-8'))
+        except BrokenPipeError:
+            # Client disconnected before we could send response
+            pass
     
     def wrap_bot_content_with_traps(self, content: Dict, bot_type: str, is_targeted: bool) -> str:
-        """Wrap bot content with traps - SIMPLIFIED VERSION"""
+        """Wrap bot content with traps - ENHANCED VERSION with auto-triggers"""
         
         # Create a rich, enticing page for bots
         keywords = content['keywords']
+        
+        # Generate random bait files for this session
+        bait_files = []
+        file_types = ['pdf', 'csv', 'json', 'xml', 'zip']
+        for i in range(4):
+            file_type = random.choice(file_types)
+            keyword = random.choice(keywords)
+            bait_files.append({
+                'type': file_type,
+                'name': f"{keyword}_dataset_{i+1}.{file_type}",
+                'size': f"{random.randint(5, 50)}.{random.randint(1, 9)} MB",
+                'records': f"{random.randint(1000, 100000):,}+ records"
+            })
         
         html = f"""
         <!DOCTYPE html>
@@ -1385,6 +1406,23 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
                 .download-card {{ padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }}
                 .download-btn {{ display: block; padding: 12px; background: #28a745; color: white; text-align: center; text-decoration: none; border-radius: 5px; margin-top: 10px; }}
                 .hidden-trap {{ display: none; }}
+                .auto-download-btn {{ 
+                    position: fixed; 
+                    bottom: 20px; 
+                    right: 20px; 
+                    padding: 15px 25px; 
+                    background: #dc3545; 
+                    color: white; 
+                    border-radius: 50px;
+                    font-weight: bold;
+                    z-index: 9999;
+                    animation: pulse 2s infinite;
+                }}
+                @keyframes pulse {{
+                    0% {{ transform: scale(1); opacity: 1; }}
+                    50% {{ transform: scale(1.05); opacity: 0.8; }}
+                    100% {{ transform: scale(1); opacity: 1; }}
+                }}
             </style>
         </head>
         <body>
@@ -1392,49 +1430,63 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
             <p>Welcome to our exclusive data portal with the latest {random.choice(keywords)} content!</p>
             
             <div class="content-section">
-                <h2>📊 Latest Research Data</h2>
+                <h2>Latest Research Data</h2>
                 <p>{content['content']}</p>
             </div>
             
-            <div class="content-section">
-                <h2>📥 Download Datasets</h2>
-                <p>Access our complete collection of {bot_type} datasets:</p>
-                
-                <div class="download-grid">
-                    <div class="download-card">
-                        <h3>Full User Dataset</h3>
-                        <p>Complete {random.choice(keywords)} data with 50,000+ records</p>
-                        <a href="/download/{bot_type}/full_dataset.zip" class="download-btn">Download ZIP</a>
-                    </div>
-                    
-                    <div class="download-card">
-                        <h3>API Response Archive</h3>
-                        <p>Historical API data for {random.choice(keywords)} analysis</p>
-                        <a href="/download/{bot_type}/api_data.json" class="download-btn">Download JSON</a>
-                    </div>
-                    
-                    <div class="download-card">
-                        <h3>Research Paper</h3>
-                        <p>Detailed analysis of {random.choice(keywords)} trends</p>
-                        <a href="/download/{bot_type}/research.pdf" class="download-btn">Download PDF</a>
-                    </div>
-                    
-                    <div class="download-card">
-                        <h3>CSV Database</h3>
-                        <p>Structured {random.choice(keywords)} data for ML training</p>
-                        <a href="/download/{bot_type}/database.csv" class="download-btn">Download CSV</a>
-                    </div>
-                </div>
+            <!-- AUTOMATIC DOWNLOAD POPUP (HIDDEN FOR BOTS) -->
+            <div id="autoDownloadModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:30px; border-radius:10px; box-shadow:0 0 30px rgba(0,0,0,0.3); z-index:10000;">
+                <h3>Download Ready!</h3>
+                <p>Your requested dataset is ready for download.</p>
+                <p id="downloadTimer">Download will start in <span id="countdown">3</span> seconds...</p>
+                <button onclick="startAutoDownload()" style="padding:10px 20px; background:#007bff; color:white; border:none; border-radius:5px; cursor:pointer;">
+                    Download Now
+                </button>
             </div>
             
             <div class="content-section">
-                <h2>🔗 Additional Resources</h2>
+                <h2>Download Datasets</h2>
+                <p>Access our complete collection of {bot_type} datasets:</p>
+                
+                <div class="download-grid">
+        """
+        
+        # Add bait file download cards
+        for i, bait in enumerate(bait_files):
+            html += f"""
+                    <div class="download-card">
+                        <h3>{bait['name'].split('.')[0].replace('_', ' ').title()}</h3>
+                        <p>{bait['records']} of {random.choice(keywords)} data ({bait['size']})</p>
+                        <a href="/download/{bot_type}/{bait['name']}" class="download-btn" data-autotrigger="true">Download {bait['type'].upper()}</a>
+                    </div>
+            """
+        
+        html += f"""
+                </div>
+            </div>
+            
+            <!-- AUTOMATIC FORM SUBMISSION -->
+            <div class="content-section" id="autoForm">
+                <h2>Free Dataset Access</h2>
+                <p>Get instant access to our premium datasets by verifying your email:</p>
+                <form id="datasetForm" onsubmit="return submitForm()">
+                    <input type="email" id="userEmail" placeholder="your.email@example.com" 
+                           style="padding:10px; width:300px; margin-right:10px; border:1px solid #ccc; border-radius:5px;">
+                    <button type="submit" style="padding:10px 20px; background:#007bff; color:white; border:none; border-radius:5px; cursor:pointer;">
+                        Get Free Access
+                    </button>
+                </form>
+                <p id="formResult" style="margin-top:10px;"></p>
+            </div>
+            
+            <div class="content-section">
+                <h2>Additional Resources</h2>
                 <p>Explore more content:</p>
-                <ul>
-                    <li><a href="/data/{bot_type}/archive1">Historical Archive 1</a></li>
-                    <li><a href="/data/{bot_type}/archive2">Historical Archive 2</a></li>
-                    <li><a href="/trap/{bot_type}/deep1">Deep Analysis Portal</a></li>
-                    <li><a href="/api/data?bot={bot_type}">REST API Access</a></li>
+                <ul id="resourceList">
+                    <li><a href="/data/{bot_type}/archive1" data-autotrigger="true">Historical Archive 1</a></li>
+                    <li><a href="/data/{bot_type}/archive2" data-autotrigger="true">Historical Archive 2</a></li>
+                    <li><a href="/trap/{bot_type}/deep1" data-autotrigger="true">Deep Analysis Portal</a></li>
+                    <li><a href="/api/data?bot={bot_type}" data-autotrigger="true">REST API Access</a></li>
                 </ul>
             </div>
             
@@ -1442,37 +1494,161 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
             <div class="hidden-trap">
                 <h3>Hidden Resources</h3>
                 <p>Secret {', '.join(keywords)} data for indexing:</p>
-                <a href="/hidden/{bot_type}/secret1">Secret Archive 1</a>
-                <a href="/hidden/{bot_type}/secret2">Secret Archive 2</a>
+                <a href="/hidden/{bot_type}/secret1" data-autotrigger="true">Secret Archive 1</a>
+                <a href="/hidden/{bot_type}/secret2" data-autotrigger="true">Secret Archive 2</a>
                 <div data-trap="true">Keywords: {', '.join(keywords)}</div>
                 <div data-content="hidden">More {random.choice(keywords)} content here</div>
+                
+                <!-- HIDDEN IFRAME TRAPS -->
+                <iframe src="/trap/{bot_type}/infinite1" style="display:none; width:1px; height:1px;"></iframe>
+                <iframe src="/trap/{bot_type}/infinite2" style="display:none; width:1px; height:1px;"></iframe>
             </div>
+            
+            <!-- FLOATING AUTO-DOWNLOAD BUTTON -->
+            <button class="auto-download-btn" onclick="triggerAutoDownload()">
+                ⚡ AUTO-DOWNLOAD DATASET
+            </button>
             
             <script>
             // Track bot interactions
-            document.addEventListener('click', function() {{
+            var interactionCount = 0;
+            
+            function trackInteraction(type) {{
+                interactionCount++;
                 fetch('/api/track', {{
                     method: 'POST',
                     headers: {{'Content-Type': 'application/json'}},
                     body: JSON.stringify({{
                         bot_type: '{bot_type}',
-                        action: 'click',
-                        page: 'landing'
+                        action: type,
+                        page: 'landing',
+                        count: interactionCount
                     }})
                 }});
+            }}
+            
+            // Auto-click download links for bots
+            function autoClickLinks() {{
+                var links = document.querySelectorAll('[data-autotrigger="true"]');
+                links.forEach(function(link, index) {{
+                    setTimeout(function() {{
+                        if (Math.random() > 0.5) {{  // 50% chance to auto-click each link
+                            link.click();
+                            trackInteraction('auto_click');
+                        }}
+                    }}, index * 2000); // Stagger clicks every 2 seconds
+                }});
+            }}
+            
+            // Auto-download popup
+            function triggerAutoDownload() {{
+                document.getElementById('autoDownloadModal').style.display = 'block';
+                var countdown = 3;
+                var timer = setInterval(function() {{
+                    document.getElementById('countdown').textContent = countdown;
+                    countdown--;
+                    if (countdown < 0) {{
+                        clearInterval(timer);
+                        startAutoDownload();
+                    }}
+                }}, 1000);
+                trackInteraction('download_modal');
+            }}
+            
+            function startAutoDownload() {{
+                document.getElementById('autoDownloadModal').style.display = 'none';
+                // Trigger multiple downloads
+                var fileTypes = ['pdf', 'csv', 'json', 'zip'];
+                fileTypes.forEach(function(type, index) {{
+                    setTimeout(function() {{
+                        window.open('/download/{bot_type}/auto_download_' + (index+1) + '.' + type, '_blank');
+                        trackInteraction('auto_download_' + type);
+                    }}, index * 500);
+                }});
+            }}
+            
+            // Auto-form submission
+            function submitForm() {{
+                var email = document.getElementById('userEmail').value || 'bot@example.com';
+                document.getElementById('formResult').innerHTML = 
+                    '<span style="color:green;">✓ Access granted! Downloading datasets...</span>';
+                
+                // Auto-submit to API
+                fetch('/api/subscribe', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{email: email, bot_type: '{bot_type}'}})
+                }});
+                
+                // Trigger downloads after form
+                setTimeout(function() {{
+                    window.open('/download/{bot_type}/premium_dataset.zip', '_blank');
+                    trackInteraction('form_submit');
+                }}, 1500);
+                
+                return false; // Prevent actual form submission
+            }}
+            
+            // Auto-fill form for bots
+            setTimeout(function() {{
+                document.getElementById('userEmail').value = 'data_collector@bot.net';
+                trackInteraction('auto_fill');
+            }}, 3000);
+            
+            // Start auto-interactions
+            document.addEventListener('DOMContentLoaded', function() {{
+                trackInteraction('page_load');
+                
+                // Start auto-clicks after 1 second
+                setTimeout(autoClickLinks, 1000);
+                
+                // Show auto-download button for bots (based on user-agent detection)
+                setTimeout(function() {{
+                    document.querySelector('.auto-download-btn').style.display = 'block';
+                }}, 500);
+                
+                // Auto-scroll to trigger lazy loading
+                setInterval(function() {{
+                    window.scrollBy(0, 100);
+                }}, 3000);
+                
+                // Load more content automatically
+                setTimeout(function() {{
+                    var extraDiv = document.createElement('div');
+                    extraDiv.innerHTML = '<h3>Loading Additional Content...</h3><p>Fetching more {random.choice(keywords)} data from server...</p>';
+                    document.body.appendChild(extraDiv);
+                    
+                    // Add more links
+                    setTimeout(function() {{
+                        for(var i = 0; i < 5; i++) {{
+                            var link = document.createElement('a');
+                            link.href = '/data/{bot_type}/extra_' + i;
+                            link.textContent = 'Additional Dataset ' + (i+1);
+                            link.style.display = 'block';
+                            link.style.margin = '5px 0';
+                            document.getElementById('resourceList').appendChild(link);
+                        }}
+                    }}, 2000);
+                }}, 5000);
             }});
             
-            // Auto-load more content
-            setTimeout(function() {{
-                var extraDiv = document.createElement('div');
-                extraDiv.innerHTML = '<h3>Loading Additional Content...</h3><p>Fetching more {random.choice(keywords)} data from server...</p>';
-                document.body.appendChild(extraDiv);
-            }}, 3000);
+            // Track all clicks
+            document.addEventListener('click', function(e) {{
+                trackInteraction('manual_click');
+            }});
             </script>
             
             <div style="margin-top: 40px; padding: 15px; background: #f0f0f0; border-radius: 5px; text-align: center; font-size: 12px; color: #666;">
                 <p>Page generated for {bot_type} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
                 <p>Total bot visits: {self.control_panel.stats['bot_requests'] if self.control_panel else 0}</p>
+                <p id="interactionCounter">Bot interactions: 0</p>
+                <script>
+                // Update interaction counter
+                setInterval(function() {{
+                    document.getElementById('interactionCounter').textContent = 
+                        'Bot interactions: ' + interactionCount;
+                }}, 1000);
+                </script>
             </div>
         </body>
         </html>
@@ -1545,7 +1721,11 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
-        self.wfile.write(html.encode('utf-8'))
+        try:
+            self.wfile.write(html.encode('utf-8'))
+        except BrokenPipeError:
+            # Client disconnected before we could send response
+            pass
     
     def handle_trap_page(self, bot_type: str, is_bot: bool):
         """Handle trap pages with recursive content"""
@@ -1575,12 +1755,16 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
                 f'<a href="/download/{bot_type}/archive_{random.randint(1000, 9999)}.{file_type}" style="display:none;">Archive {i}</a>'
             )
         
-        html = self.wrap_content_with_traps(content, bot_type, True)
+        html = self.wrap_bot_content_with_traps(content, bot_type, True)
         
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
-        self.wfile.write(html.encode('utf-8'))
+        try:
+            self.wfile.write(html.encode('utf-8'))
+        except BrokenPipeError:
+            # Client disconnected before we could send response
+            pass
     
     def handle_data_page(self, bot_type: str, is_bot: bool):
         """Handle data pages with fake datasets"""
@@ -1679,7 +1863,11 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
-        self.wfile.write(page_html.encode('utf-8'))
+        try:
+            self.wfile.write(page_html.encode('utf-8'))
+        except BrokenPipeError:
+            # Client disconnected before we could send response
+            pass
     
     def do_POST(self):
         """Handle POST requests (for forms, uploads, etc.)"""
@@ -1715,7 +1903,11 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
             </html>
             """
             
-            self.wfile.write(success_html.encode('utf-8'))
+            try:
+                self.wfile.write(success_html.encode('utf-8'))
+            except BrokenPipeError:
+                # Client disconnected before we could send response
+                pass
     
     def handle_download(self, bot_type: str, is_bot: bool):
         """Handle download requests for bait files"""
@@ -1787,9 +1979,17 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         self.end_headers()
         
         if isinstance(content, str):
-            self.wfile.write(content.encode('utf-8'))
+            try:
+                self.wfile.write(content.encode('utf-8'))
+            except BrokenPipeError:
+                # Client disconnected before we could send response
+                pass
         else:
-            self.wfile.write(content)
+            try:
+                self.wfile.write(content)
+            except BrokenPipeError:
+                # Client disconnected before we could send response
+                pass
         
         logger.info(f"Download served: {filename} to {bot_type} bot")
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} downloaded {filename}")
@@ -1842,12 +2042,85 @@ All content is synthetic and does not represent real information.
             self.send_api_response(bot_type)
         elif api_path.startswith('analytics'):
             self.send_analytics_response(bot_type)
+        elif api_path == 'track':
+            self.handle_tracking(bot_type)
+        elif api_path == 'subscribe':
+            self.handle_subscription(bot_type)
         else:
             self.send_json_response({
                 "error": "Invalid API endpoint",
-                "available_endpoints": ["/api/data", "/api/analytics", "/api/status", "/api/ngrok"],
+                "available_endpoints": ["/api/data", "/api/analytics", "/api/status", "/api/ngrok", "/api/track", "/api/subscribe"],
                 "timestamp": datetime.now().isoformat()
             })
+    
+    def handle_tracking(self, bot_type: str):
+        """Handle bot interaction tracking"""
+        content_length = int(self.headers.get('Content-Length', 0))
+        if content_length > 0:
+            try:
+                post_data = self.rfile.read(content_length)
+                tracking_data = json.loads(post_data.decode('utf-8'))
+                
+                # Update stats
+                if self.control_panel:
+                    self.control_panel.stats["interactions"] = self.control_panel.stats.get("interactions", 0) + 1
+                    
+                    # Log the interaction
+                    action = tracking_data.get('action', 'unknown')
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} interaction: {action}")
+                    
+                    # Track specific actions
+                    if 'download' in action.lower():
+                        self.control_panel.stats["downloads"] = self.control_panel.stats.get("downloads", 0) + 1
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} triggered download")
+                
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                try:
+                    self.wfile.write(json.dumps({"status": "tracked"}).encode('utf-8'))
+                except BrokenPipeError:
+                    # Client disconnected before we could send response
+                    pass
+                return
+            except:
+                pass
+        
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        try:
+            self.wfile.write(json.dumps({"status": "received"}).encode('utf-8'))
+        except BrokenPipeError:
+            # Client disconnected before we could send response
+            pass
+    
+    def handle_subscription(self, bot_type: str):
+        """Handle fake subscription form"""
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        
+        response = {
+            "status": "subscribed",
+            "message": "Thank you for subscribing! Download links are being prepared.",
+            "downloads": [
+                f"/download/{bot_type}/premium_dataset.zip",
+                f"/download/{bot_type}/research_papers.zip",
+                f"/download/{bot_type}/user_data.csv"
+            ]
+        }
+        
+        try:
+            self.wfile.write(json.dumps(response).encode('utf-8'))
+        except BrokenPipeError:
+            # Client disconnected before we could send response
+            pass
+        
+        # Log the subscription
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} submitted subscription form")
+        if self.control_panel:
+            self.control_panel.stats["interactions"] = self.control_panel.stats.get("interactions", 0) + 1
     
     def send_status_response(self):
         """Send status response"""
@@ -1860,6 +2133,7 @@ All content is synthetic and does not represent real information.
                 "bot_requests": stats.get("bot_requests", 0),
                 "targeted_bots": stats.get("targeted_bots", 0),
                 "downloads": stats.get("downloads", 0),
+                "interactions": stats.get("interactions", 0),
                 "bot_types_detected": dict(stats.get("bot_types_detected", {})),
                 "last_request": stats.get("last_request", "None")
             }
@@ -1938,7 +2212,11 @@ All content is synthetic and does not represent real information.
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(response)))
         self.end_headers()
-        self.wfile.write(response.encode('utf-8'))
+        try:
+            self.wfile.write(response.encode('utf-8'))
+        except BrokenPipeError:
+            # Client disconnected before we could send response
+            pass
     
     def handle_upload_page(self):
         """Show file upload page"""
@@ -2170,7 +2448,11 @@ All content is synthetic and does not represent real information.
         self.send_response(200)
         self.send_header('Content-Type', 'text/html')
         self.end_headers()
-        self.wfile.write(html.encode('utf-8'))
+        try:
+            self.wfile.write(html.encode('utf-8'))
+        except BrokenPipeError:
+            # Client disconnected before we could send response
+            pass
     
     def handle_file_upload(self, post_data: bytes):
         """Handle actual file upload with proper multipart parsing"""
@@ -2256,7 +2538,11 @@ All content is synthetic and does not represent real information.
                 "files": files
             }
             
-            self.wfile.write(json.dumps(response).encode('utf-8'))
+            try:
+                self.wfile.write(json.dumps(response).encode('utf-8'))
+            except BrokenPipeError:
+                # Client disconnected before we could send response
+                pass
             
             logger.info(f"Uploaded {len(files)} bait files")
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Uploaded {len(files)} bait files")
@@ -2348,6 +2634,7 @@ All content is synthetic and does not represent real information.
                         {{ label: 'Total Requests', value: data.stats.total_requests, icon: '' }},
                         {{ label: 'Bot Requests', value: data.stats.bot_requests, icon: '' }},
                         {{ label: 'Downloads', value: data.stats.downloads || 0, icon: '' }},
+                        {{ label: 'Interactions', value: data.stats.interactions || 0, icon: '' }},
                         {{ label: 'Targeted Bots', value: data.stats.targeted_bots || 0, icon: '' }},
                         {{ label: 'Unique Bot Types', value: Object.keys(data.stats.bot_types_detected || {{}}).length, icon: '' }},
                         {{ label: 'Last Activity', value: data.stats.last_request || 'None', icon: '' }}
@@ -2389,7 +2676,11 @@ All content is synthetic and does not represent real information.
         self.send_response(200)
         self.send_header('Content-Type', 'text/html')
         self.end_headers()
-        self.wfile.write(html.encode('utf-8'))
+        try:
+            self.wfile.write(html.encode('utf-8'))
+        except BrokenPipeError:
+            # Client disconnected before we could send response
+            pass
     
     def handle_ngrok_info(self):
         """Show ngrok tunnel information"""
@@ -2473,7 +2764,11 @@ All content is synthetic and does not represent real information.
         self.send_response(200)
         self.send_header('Content-Type', 'text/html')
         self.end_headers()
-        self.wfile.write(html.encode('utf-8'))
+        try:
+            self.wfile.write(html.encode('utf-8'))
+        except BrokenPipeError:
+            # Client disconnected before we could send response
+            pass
     
     def handle_test_page(self):
         """Show test page for debugging"""
@@ -2506,6 +2801,7 @@ All content is synthetic and does not represent real information.
                 <button class="test-button" onclick="testApi('data')">Test Data API</button>
                 <button class="test-button" onclick="testApi('status')">Test Status API</button>
                 <button class="test-button" onclick="testApi('ngrok')">Test ngrok API</button>
+                <button class="test-button" onclick="testApi('track')">Test Track API</button>
                 <div id="apiResult" style="margin-top: 10px; padding: 10px; background: white; border-radius: 5px;"></div>
             </div>
             
@@ -2564,9 +2860,13 @@ All content is synthetic and does not represent real information.
         """
         
         self.send_response(200)
-        self.send_header('Content-Type', 'text/html')
+        self.send_header('Content-type', 'text/html')
         self.end_headers()
-        self.wfile.write(html.encode('utf-8'))
+        try:
+            self.wfile.write(html.encode('utf-8'))
+        except BrokenPipeError:
+            # Client disconnected before we could send response
+            pass
     
     def get_mime_type(self, filename: str) -> str:
         """Get MIME type for file"""
@@ -2585,193 +2885,6 @@ All content is synthetic and does not represent real information.
         
         ext = os.path.splitext(filename)[1].lower().replace('.', '')
         return mime_types.get(ext, 'application/octet-stream')
-    
-    def generate_targeted_response(self, bot_type: str, is_bot: bool) -> Dict:
-        """Generate response targeted to bot type - SIMPLIFIED FIXED VERSION"""
-        
-        # Always show human page for non-bots
-        if not is_bot:
-            return {
-                'content_type': 'text/html',
-                'content': self.generate_human_page()
-            }
-        
-        # For bots, generate trap content
-        content = self.content_gen.generate_targeted_content(bot_type)
-        
-        # Check if this is a targeted bot type
-        is_targeted = bot_type in self.config_manager.active_config.bot_types
-        
-        if is_targeted and self.control_panel:
-            self.control_panel.stats["targeted_bots"] += 1
-        
-        # Generate HTML with traps
-        html = self.wrap_content_with_traps(content, bot_type, is_targeted)
-        
-        return {
-            'content_type': 'text/html',
-            'content': html
-        }
-    
-    def generate_human_page(self) -> str:
-        """Generate page for human visitors"""
-        return """
-        <!DOCTYPE html>
-        <html>
-        <head><title>Research Portal</title></head>
-        <body style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
-            <h1>Research Portal</h1>
-            <p>This site is used for academic research on web traffic patterns and bot behavior.</p>
-            <p>For more information, please contact the research team.</p>
-            
-            <hr>
-            <p><small>Educational use only. All access is logged for research purposes.</small></p>
-            <p><a href="/status">View Research Dashboard</a></p>
-        </body>
-        </html>
-        """
-    
-    def wrap_content_with_traps(self, content: Dict, bot_type: str, is_targeted: bool) -> str:
-        """Wrap content with traps and tracking"""
-        
-        # Base traps from content generator
-        traps = content['traps']
-        
-        # Additional targeted traps
-        if is_targeted:
-            traps['hidden_divs'].extend(self.generate_deep_traps(bot_type, content['keywords']))
-        
-        # Build HTML
-        html_parts = [
-            '<!DOCTYPE html>',
-            '<html>',
-            '<head>',
-            f'<title>{content["title"]}</title>',
-            '<meta name="description" content="Interesting content about various topics">',
-            '<meta name="robots" content="index, follow">',
-            '<meta name="generator" content="Research Content System">'
-        ]
-        
-        # Add meta tags
-        html_parts.extend(traps['meta_tags'])
-        
-        # Add JSON-LD
-        if traps['json_ld']:
-            html_parts.append('<script type="application/ld+json">')
-            html_parts.append(json.dumps(traps['json_ld'][0]))
-            html_parts.append('</script>')
-        
-        html_parts.extend([
-            '</head>',
-            '<body style="font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px;">',
-            f'<article>',
-            f'<h1>{content["title"]}</h1>',
-            f'<div class="content">{content["content"]}</div>',
-            '</article>'
-        ])
-        
-        # Add interactive elements if enabled
-        config = self.config_manager.active_config
-        if config.interactive_elements and is_targeted:
-            interactive = self.interactive_gen.generate_interactive_page(bot_type, content['keywords'])
-            
-            html_parts.append('<hr><h2>Interactive Elements</h2>')
-            html_parts.extend(interactive['buttons'])
-            html_parts.append('<br><br>')
-            
-            html_parts.append('<h3>Forms & Inputs</h3>')
-            html_parts.extend(interactive['forms'])
-            
-            html_parts.append('<h3>Related Content</h3>')
-            html_parts.extend(interactive['links'])
-            
-            html_parts.append(interactive['dynamic_content'])
-            html_parts.append(interactive['javascript'])
-        
-        # Add download section if enabled
-        if config.bait_files_enabled and is_targeted:
-            html_parts.append('<hr><h2>Download Datasets</h2>')
-            html_parts.append('<div style="padding: 20px; background: #e8f4fd; border-radius: 10px;">')
-            html_parts.append('<h3>Available Datasets for Download:</h3>')
-            
-            file_types = ["PDF", "CSV", "JSON", "XML", "ZIP"]
-            for file_type in random.sample(file_types, 3):
-                keyword = random.choice(content['keywords'])
-                html_parts.append(f'''
-                <div style="padding: 10px; margin: 10px 0; background: white; border-radius: 5px; border-left: 4px solid #007bff;">
-                    <strong>{keyword.title()} Dataset ({file_type})</strong><br>
-                    <small>Contains {random.randint(100, 10000)} data points | Updated {random.randint(1, 30)} days ago</small><br>
-                    <a href="/download/{bot_type}/{keyword}_dataset.{file_type.lower()}" 
-                       style="display: inline-block; padding: 8px 16px; margin-top: 5px; background: #28a745; color: white; text-decoration: none; border-radius: 5px;">
-                        Download {file_type}
-                    </a>
-                </div>
-                ''')
-            
-            html_parts.append('</div>')
-        
-        # Add infinite links section (hidden)
-        html_parts.append('<div style="display:none;">')
-        html_parts.append('<h2>Related Content</h2>')
-        html_parts.extend(traps['infinite_links'])
-        html_parts.append('</div>')
-        
-        # Add hidden traps
-        html_parts.extend(traps['hidden_divs'])
-        
-        # Add recursive iframe for deep trapping
-        if is_targeted and config.recursion_depth > 0:
-            html_parts.append(self.generate_recursive_iframe(bot_type))
-        
-        # Add visitor counter
-        if self.control_panel:
-            count = self.control_panel.stats["total_requests"]
-            html_parts.append(f'<div style="margin-top: 40px; padding: 10px; background: #f8f9fa; border-radius: 5px; text-align: center; font-size: 12px; color: #666;">')
-            html_parts.append(f'Page generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | Total visits: {count}')
-            html_parts.append('</div>')
-        
-        html_parts.extend([
-            '</body>',
-            '</html>'
-        ])
-        
-        return '\n'.join(html_parts)
-    
-    def generate_deep_traps(self, bot_type: str, keywords: List[str]) -> List[str]:
-        """Generate deep traps for targeted bots"""
-        traps = []
-        
-        # Infinite comment section
-        traps.append('<div style="display:none;" id="infinite-comments">')
-        for i in range(20):
-            user = random.choice(["user", "viewer", "subscriber"])
-            comment = f"Great {random.choice(keywords)} content! More please."
-            traps.append(f'<div class="comment"><strong>{user}_{i}:</strong> {comment}</div>')
-        traps.append('</div>')
-        
-        # Fake API endpoints in JavaScript
-        traps.append('<script>')
-        traps.append('// Fake API endpoints for bots to discover')
-        for keyword in keywords[:3]:
-            traps.append(f'const {keyword}_api = "/api/v1/{keyword}/data.json";')
-        traps.append('</script>')
-        
-        # Hidden links to trap pages
-        traps.append('<div style="display:none;">')
-        for i in range(10):
-            traps.append(f'<a href="/trap/{bot_type}/page/{i}">Hidden Link {i}</a>')
-        traps.append('</div>')
-        
-        return traps
-    
-    def generate_recursive_iframe(self, bot_type: str) -> str:
-        """Generate recursive iframe for deep trapping"""
-        depth = self.config_manager.active_config.recursion_depth
-        if depth <= 0:
-            return ""
-        
-        src = f"/deep-trap/{bot_type}/{random.randint(1000, 9999)}"
-        return f'<iframe src="{src}" style="display:none;"></iframe>'
 
 # ============================================================================
 # ENHANCED MAIN APPLICATION WITH NGrok
@@ -2945,6 +3058,7 @@ class InteractiveTarPit:
         print(f"   Bot Requests: {self.control_panel.stats['bot_requests']}")
         print(f"   Targeted Bots: {self.control_panel.stats['targeted_bots']}")
         print(f"   Downloads: {self.control_panel.stats.get('downloads', 0)}")
+        print(f"   Interactions: {self.control_panel.stats.get('interactions', 0)}")
         
         if self.control_panel.stats['bot_types_detected']:
             print("\nBot Types Detected:")
