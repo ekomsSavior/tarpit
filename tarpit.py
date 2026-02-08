@@ -45,7 +45,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# NGrok Integration - FIXED VERSION
+# NGrok Integration
 # ============================================================================
 
 class NgrokManager:
