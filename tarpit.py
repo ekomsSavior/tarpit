@@ -3906,7 +3906,7 @@ class InteractiveTarPit:
                     self.public_url = None
         
         print(f"\n" + "="*60)
-        print(f"INTERACTIVE AI SCRAPER TAR PIT - FIXED VERSION")
+        print(f"INTERACTIVE AI SCRAPER TAR PIT")
         print(f"="*60)
         print(f"Local URL: http://{self.host}:{self.port}")
         if self.public_url:
@@ -4144,12 +4144,12 @@ def create_default_config():
     print("Bait files: Enabled")
 
 # ============================================================================
-# MAIN ENTRY POINT WITH NGrok SUPPORT - FIXED
+# MAIN ENTRY POINT WITH NGrok SUPPORT
 # ============================================================================
 
 def main():
     """Main entry point with ngrok support"""
-    parser = argparse.ArgumentParser(description='Interactive AI Scraper Tar Pit with ngrok - FIXED VERSION')
+    parser = argparse.ArgumentParser(description='Interactive AI Scraper Tar Pit with ngrok')
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind to (default: 0.0.0.0)')
     parser.add_argument('--port', type=int, default=8080, help='Port to listen on (default: 8080)')
     parser.add_argument('--ngrok', action='store_true', help='Enable ngrok tunneling for public access')
@@ -4163,7 +4163,7 @@ def main():
     args = parser.parse_args()
     
     print("\n" + "="*70)
-    print("INTERACTIVE AI SCRAPER TAR PIT WITH NGrok - FIXED VERSION")
+    print("INTERACTIVE AI SCRAPER TAR PIT WITH NGrok")
     print("="*70)
     print("Enhanced tool with ngrok tunneling, interactive elements and bait files")
     print("by: ek0ms savi0r")
