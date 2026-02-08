@@ -45,7 +45,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# NGrok Integration - IMPROVED VERSION
+# NGrok Integration - FIXED VERSION
 # ============================================================================
 
 class NgrokManager:
@@ -58,6 +58,8 @@ class NgrokManager:
         self.public_url = None
         self.api_url = "http://localhost:4040/api"
         self.tunnel_start_time = None
+        self.last_check_time = 0
+        self.check_interval = 60  # Check every 60 seconds, not 30
         self.setup_ngrok_config()
     
     def setup_ngrok_config(self):
@@ -136,7 +138,7 @@ class NgrokManager:
                 print(f"ngrok dashboard: http://localhost:4040")
                 logger.info(f"ngrok tunnel established: {self.public_url}")
                 
-                # Start monitoring thread
+                # Start monitoring thread with FIXED interval
                 threading.Thread(target=self.monitor_tunnel, daemon=True).start()
                 return self.public_url
             else:
@@ -229,25 +231,52 @@ class NgrokManager:
         return None
     
     def monitor_tunnel(self):
-        """Monitor ngrok tunnel health"""
-        check_interval = 30  # Check every 30 seconds
+        """Monitor ngrok tunnel health - FIXED: Reduced frequency and removed self-connections"""
+        check_interval = 60  # Check every 60 seconds instead of 30
         
         while self.process and self.process.poll() is None:
             time.sleep(check_interval)
             
-            # Check if tunnel is still responding
-            if not self.is_tunnel_alive():
-                logger.warning("ngrok tunnel appears to be down")
-                print("ngrok tunnel appears down, attempting to restart...")
-                
-                # Restart tunnel
-                current_port = 8080  # Default, should track actual port
-                self.stop()
-                time.sleep(2)
-                self.start_tunnel(current_port)
+            # Check if tunnel is still responding using ngrok API only
+            # NOT by connecting to our own server!
+            try:
+                response = requests.get(f"{self.api_url}/tunnels", timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    tunnels = data.get('tunnels', [])
+                    
+                    if not tunnels:
+                        logger.warning("ngrok API reports no active tunnels")
+                        print("ngrok tunnel appears to be down (no tunnels in API response)")
+                        
+                        # Check if ngrok process is still running
+                        if self.process.poll() is not None:
+                            print("ngrok process has terminated, attempting to restart...")
+                            # Restart tunnel
+                            current_port = 8080  # Default, should track actual port
+                            self.stop()
+                            time.sleep(2)
+                            self.start_tunnel(current_port)
+                else:
+                    logger.debug(f"ngrok API returned status {response.status_code}")
+                    
+            except requests.exceptions.ConnectionError:
+                # ngrok API is not responding - tunnel might be down
+                logger.warning("ngrok API not responding")
+                if time.time() - self.tunnel_start_time > 300:  # Only restart after 5 minutes
+                    print("ngrok API not responding for 5+ minutes, checking process...")
+                    if self.process.poll() is not None:
+                        print("ngrok process has terminated, attempting to restart...")
+                        current_port = 8080
+                        self.stop()
+                        time.sleep(2)
+                        self.start_tunnel(current_port)
+            except Exception as e:
+                logger.debug(f"Tunnel check failed: {e}")
+                # Don't restart on random errors
     
     def is_tunnel_alive(self) -> bool:
-        """Check if tunnel is alive by querying ngrok API"""
+        """Check if tunnel is alive by querying ngrok API - FIXED: No self-connections"""
         try:
             response = requests.get(f"{self.api_url}/tunnels", timeout=5)
             if response.status_code == 200:
@@ -1250,14 +1279,16 @@ class ConfigManager:
         return "human"
 
 # ============================================================================
-# UTILITY FUNCTIONS
+# UTILITY FUNCTIONS - FIXED: No Self-Connections
 # ============================================================================
 
 def is_port_in_use(port: int, host: str = '0.0.0.0') -> bool:
-    """Check if a port is already in use"""
+    """Check if a port is already in use - FIXED: No persistent connections"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind((host, port))
+            s.close()
             return False
         except socket.error:
             return True
@@ -1270,11 +1301,11 @@ def find_available_port(start_port: int = 8080, max_attempts: int = 100) -> Opti
     return None
 
 # ============================================================================
-# ENHANCED REQUEST HANDLER WITH AGGRESSIVE TRAPS - UPDATED
+# ENHANCED REQUEST HANDLER WITH AGGRESSIVE TRAPS - FIXED
 # ============================================================================
 
 class InteractiveTarPitHandler(BaseHTTPRequestHandler):
-    """Enhanced HTTP handler with aggressive interactive traps - UPDATED"""
+    """Enhanced HTTP handler with aggressive interactive traps"""
     
     def __init__(self, *args, 
                  content_gen=None, 
@@ -1308,6 +1339,18 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         user_agent = self.headers.get('User-Agent', '')
         referer = self.headers.get('Referer', '')
         client_ip = self.client_address[0]
+        
+        # Skip localhost monitoring connections
+        if client_ip in ['127.0.0.1', '::1', 'localhost'] and 'monitoring' in user_agent.lower():
+            # This is a monitoring request, respond quickly and don't log
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain')
+            self.end_headers()
+            try:
+                self.wfile.write(b'OK')
+            except BrokenPipeError:
+                pass
+            return
         
         # Enhanced bot detection
         bot_type = self.config_manager.detect_bot_type(user_agent, self.path)
@@ -3765,7 +3808,7 @@ startxref
         return mime_types.get(ext, 'application/octet-stream')
 
 # ============================================================================
-# ENHANCED MAIN APPLICATION WITH NGrok
+# ENHANCED MAIN APPLICATION WITH NGrok - FIXED
 # ============================================================================
 
 class InteractiveTarPit:
@@ -3779,7 +3822,7 @@ class InteractiveTarPit:
         self.bait_manager = BaitContentManager()
         self.interactive_gen = InteractiveElementsGenerator()
         
-        # Initialize ngrok manager
+        # Initialize ngrok manager with FIXED monitoring
         self.ngrok_manager = NgrokManager(auth_token=ngrok_auth_token)
         self.public_url = None
         
@@ -3863,7 +3906,7 @@ class InteractiveTarPit:
                     self.public_url = None
         
         print(f"\n" + "="*60)
-        print(f"INTERACTIVE AI SCRAPER TAR PIT")
+        print(f"INTERACTIVE AI SCRAPER TAR PIT - FIXED VERSION")
         print(f"="*60)
         print(f"Local URL: http://{self.host}:{self.port}")
         if self.public_url:
@@ -3875,6 +3918,7 @@ class InteractiveTarPit:
         print(f"Status: http://{self.host}:{self.port}/status")
         print(f"Test: http://{self.host}:{self.port}/test")
         print(f"\nMonitoring active. Bot interactions will appear below:")
+        print(f"Hack the Planet!")
         print(f"="*60)
         
         # Start server in background thread
@@ -3885,16 +3929,13 @@ class InteractiveTarPit:
         try:
             while True:
                 time.sleep(1)
-                # Check for ngrok updates if active
-                if use_ngrok and not self.ngrok_manager.is_tunnel_alive():
-                    print("WARNING: ngrok tunnel appears to be down. Attempting to restart...")
-                    self.public_url = self.ngrok_manager.start_tunnel(self.port)
-                    
+                # NO MORE SELF-CHECKING - Let ngrok handle its own monitoring
+                
         except KeyboardInterrupt:
             self.stop()
     
     def find_available_port(self, start_port: int) -> int:
-        """Find an available port starting from start_port"""
+        """Find an available port starting from start_port - FIXED: No persistent checks"""
         port = start_port
         max_attempts = 100
         
@@ -4103,12 +4144,12 @@ def create_default_config():
     print("Bait files: Enabled")
 
 # ============================================================================
-# MAIN ENTRY POINT WITH NGrok SUPPORT
+# MAIN ENTRY POINT WITH NGrok SUPPORT - FIXED
 # ============================================================================
 
 def main():
     """Main entry point with ngrok support"""
-    parser = argparse.ArgumentParser(description='Interactive AI Scraper Tar Pit with ngrok')
+    parser = argparse.ArgumentParser(description='Interactive AI Scraper Tar Pit with ngrok - FIXED VERSION')
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind to (default: 0.0.0.0)')
     parser.add_argument('--port', type=int, default=8080, help='Port to listen on (default: 8080)')
     parser.add_argument('--ngrok', action='store_true', help='Enable ngrok tunneling for public access')
@@ -4122,9 +4163,10 @@ def main():
     args = parser.parse_args()
     
     print("\n" + "="*70)
-    print("INTERACTIVE AI SCRAPER TAR PIT WITH NGrok")
+    print("INTERACTIVE AI SCRAPER TAR PIT WITH NGrok - FIXED VERSION")
     print("="*70)
     print("Enhanced tool with ngrok tunneling, interactive elements and bait files")
+    print("by: ek0ms savi0r")
     print("Educational use only")
     print("="*70)
     
