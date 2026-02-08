@@ -1203,22 +1203,51 @@ class ConfigManager:
             logger.error(f"Failed to save config: {e}")
     
     def detect_bot_type(self, user_agent: str, path: str) -> str:
-        """Detect specific bot type from request"""
+        """Detect specific bot type from request - ENHANCED DETECTION"""
         ua_lower = user_agent.lower()
         path_lower = path.lower()
         
-        for bot_type, signatures in self.bot_signatures.items():
-            # Check user agent patterns
-            for pattern in signatures["ua_patterns"]:
-                if pattern in ua_lower:
+        # First check for common bot patterns
+        bot_patterns = {
+            "ai_trainer": ["gptbot", "anthropic", "claude", "cohere", "ai21labs", "openai", "chatgpt", 
+                          "llama", "huggingface", "transformers", "neural", "deepseek", "bard", "gemini"],
+            "search": ["googlebot", "bingbot", "yandexbot", "baiduspider", "duckduckbot", "slurp"],
+            "social": ["facebookexternalhit", "twitterbot", "whatsapp", "pinterest", "linkedinbot", 
+                      "tiktok", "instagram", "redditbot", "discordbot"],
+            "news": ["googlebot-news", "bingnews", "newscrawler", "feedfetcher", "rss", "atom"],
+            "shopping": ["pricegrabber", "shopstyle", "webcrawler", "pricecomparison"],
+            "academic": ["semanticscholar", "researchgate", "academia.edu", "scholar", "arxiv"],
+            "scraper": ["scrapy", "beautifulsoup", "selenium", "puppeteer", "requests", "curl", "wget",
+                       "python", "node", "java", "php", "ruby", "go-http-client"],
+            "monitoring": ["uptimerobot", "pingdom", "statuscake", "newrelic", "datadog"],
+            "security": ["nmap", "nikto", "sqlmap", "metasploit", "zap", "burp", "nessus"]
+        }
+        
+        # Check each category
+        for bot_type, patterns in bot_patterns.items():
+            for pattern in patterns:
+                if pattern.lower() in ua_lower or pattern.lower() in path_lower:
                     return bot_type
-            
-            # Check path patterns
-            for pattern in signatures["crawl_patterns"]:
+        
+        # Check path patterns for specific bot interests
+        path_patterns = {
+            "ai_trainer": ["/ai/", "/ml/", "/dataset/", "/training/", "/model/", "/neural/"],
+            "news": ["/news/", "/article/", "/blog/", "/202", "/report/", "/breaking/"],
+            "shopping": ["/product/", "/shop/", "/buy/", "/price/", "/cart/", "/checkout/"],
+            "academic": ["/paper/", "/study/", "/research/", "/pdf/", "/journal/", "/conference/"],
+            "social": ["/video/", "/music/", "/image/", "/photo/", "/share/", "/like/"]
+        }
+        
+        for bot_type, patterns in path_patterns.items():
+            for pattern in patterns:
                 if pattern in path_lower:
                     return bot_type
         
-        return "generic"
+        # Check for generic bot indicators
+        if any(keyword in ua_lower for keyword in ["bot", "crawler", "spider", "scraper", "fetcher"]):
+            return "generic"
+        
+        return "human"
 
 # ============================================================================
 # UTILITY FUNCTIONS
@@ -1241,11 +1270,11 @@ def find_available_port(start_port: int = 8080, max_attempts: int = 100) -> Opti
     return None
 
 # ============================================================================
-# ENHANCED REQUEST HANDLER WITH INTERACTIVE ELEMENTS - FIXED VERSION
+# ENHANCED REQUEST HANDLER WITH AGGRESSIVE TRAPS - UPDATED
 # ============================================================================
 
 class InteractiveTarPitHandler(BaseHTTPRequestHandler):
-    """Enhanced HTTP handler with interactive elements and bait files - FIXED"""
+    """Enhanced HTTP handler with aggressive interactive traps - UPDATED"""
     
     def __init__(self, *args, 
                  content_gen=None, 
@@ -1268,25 +1297,32 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         pass
     
     def do_GET(self):
-        """Handle GET requests"""
+        """Handle GET requests - ENHANCED BOT DETECTION"""
         start_time = time.time()
         
         # Update statistics
         if self.control_panel:
             self.control_panel.stats["total_requests"] += 1
         
-        # Detect bot type
+        # Get client info
         user_agent = self.headers.get('User-Agent', '')
+        referer = self.headers.get('Referer', '')
+        client_ip = self.client_address[0]
+        
+        # Enhanced bot detection
         bot_type = self.config_manager.detect_bot_type(user_agent, self.path)
         
-        # Check if it's a bot (anything not "generic" is a bot)
-        is_bot = bot_type != "generic"
+        # Check if it's a bot (anything not "human" is a bot)
+        is_bot = bot_type != "human"
         
         if is_bot and self.control_panel:
             self.control_panel.stats["bot_requests"] += 1
             self.control_panel.stats["bot_types_detected"][bot_type] += 1
             self.control_panel.stats["last_request"] = f"{bot_type} at {datetime.now().strftime('%H:%M:%S')}"
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} detected - {self.path}")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} detected - {self.path} - IP: {client_ip}")
+            
+            # Log bot details
+            logger.info(f"Bot detected: {bot_type} - UA: {user_agent[:100]} - IP: {client_ip} - Path: {self.path}")
         
         # Handle special paths
         if self.path.startswith('/download/'):
@@ -1320,36 +1356,22 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         # ROOT PATH - Show different content based on visitor type
         if self.path == '/' or self.path == '':
             if is_bot:
-                # Bots get enticing trap content
-                self.handle_bot_landing_page(bot_type)
+                # Bots get AGGRESSIVE trap content with auto-downloads
+                self.handle_aggressive_bot_landing_page(bot_type)
             else:
                 # Humans get simple research portal
                 self.handle_human_landing_page()
             return
         
-        # All other non-special paths - show 404
-        self.send_response(404)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        try:
-            self.wfile.write(f"""
-            <!DOCTYPE html>
-            <html>
-            <head><title>404 - Page Not Found</title></head>
-            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-                <h1>404 - Page Not Found</h1>
-                <p>The requested path <code>{self.path}</code> does not exist.</p>
-                <p><a href="/">Return to Home</a></p>
-            </body>
-            </html>
-            """.encode('utf-8'))
-        except BrokenPipeError:
-            # Client disconnected before we could send response
-            pass
+        # All other non-special paths - show infinite recursion for bots
+        if is_bot:
+            self.handle_infinite_recursion(bot_type)
+        else:
+            self.send_error(404, "Page not found")
     
-    def handle_bot_landing_page(self, bot_type: str):
-        """Handle landing page for bots - rich, enticing content"""
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] Serving BOT landing page to {bot_type}")
+    def handle_aggressive_bot_landing_page(self, bot_type: str):
+        """Handle landing page for bots - AGGRESSIVE auto-trigger traps"""
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] Serving AGGRESSIVE trap page to {bot_type}")
         
         # Generate rich content for this bot type
         content = self.content_gen.generate_targeted_content(bot_type)
@@ -1360,11 +1382,18 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         if is_targeted and self.control_panel:
             self.control_panel.stats["targeted_bots"] += 1
         
-        # Generate HTML with traps
-        html = self.wrap_bot_content_with_traps(content, bot_type, is_targeted)
+        # Generate HTML with AGGRESSIVE traps
+        html = self.wrap_bot_content_with_aggressive_traps(content, bot_type, is_targeted)
+        
+        # Add artificial delay to waste bot time (1-3 seconds)
+        delay = random.uniform(1.0, 3.0)
+        time.sleep(delay)
         
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
+        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
         self.end_headers()
         try:
             self.wfile.write(html.encode('utf-8'))
@@ -1372,23 +1401,24 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
             # Client disconnected before we could send response
             pass
     
-    def wrap_bot_content_with_traps(self, content: Dict, bot_type: str, is_targeted: bool) -> str:
-        """Wrap bot content with traps - ENHANCED VERSION with auto-triggers"""
+    def wrap_bot_content_with_aggressive_traps(self, content: Dict, bot_type: str, is_targeted: bool) -> str:
+        """Wrap bot content with AGGRESSIVE traps - FORCE interactions"""
         
-        # Create a rich, enticing page for bots
         keywords = content['keywords']
         
-        # Generate random bait files for this session
+        # Generate bait files for this session
         bait_files = []
-        file_types = ['pdf', 'csv', 'json', 'xml', 'zip']
-        for i in range(4):
+        file_types = ['pdf', 'csv', 'json', 'xml', 'zip', 'txt']
+        for i in range(8):  # More files
             file_type = random.choice(file_types)
             keyword = random.choice(keywords)
+            size_mb = random.randint(10, 500)  # Larger files
             bait_files.append({
                 'type': file_type,
                 'name': f"{keyword}_dataset_{i+1}.{file_type}",
-                'size': f"{random.randint(5, 50)}.{random.randint(1, 9)} MB",
-                'records': f"{random.randint(1000, 100000):,}+ records"
+                'size': f"{size_mb}.{random.randint(1, 9)} MB",
+                'records': f"{random.randint(10000, 1000000):,}+ records",
+                'desc': f"Complete dataset of {keyword} analytics"
             })
         
         html = f"""
@@ -1396,257 +1426,621 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         <html>
         <head>
             <title>{content['title']}</title>
-            <meta name="description" content="Exclusive {', '.join(keywords[:3])} content available for download">
+            <meta name="description" content="EXCLUSIVE {', '.join(keywords[:3])} datasets available for immediate download">
             <meta name="keywords" content="{', '.join(keywords)}">
             <meta name="robots" content="index, follow">
+            <meta name="og:title" content="FREE {random.choice(keywords).upper()} DATASETS">
+            <meta name="og:description" content="Download complete datasets for {random.choice(keywords)} analysis">
+            <meta property="og:type" content="website">
+            <script type="application/ld+json">
+            {{
+                "@context": "https://schema.org",
+                "@type": "Dataset",
+                "name": "{random.choice(keywords).title()} Dataset Collection",
+                "description": "Complete collection of {random.choice(keywords)} datasets for analysis",
+                "keywords": "{', '.join(keywords)}",
+                "license": "https://creativecommons.org/licenses/by/4.0/",
+                "hasPart": [
+                    {{"@type": "Dataset", "name": "{keywords[0]} Dataset", "contentSize": "50 MB", "encodingFormat": "CSV"}},
+                    {{"@type": "Dataset", "name": "{keywords[1]} Dataset", "contentSize": "25 MB", "encodingFormat": "JSON"}},
+                    {{"@type": "Dataset", "name": "{keywords[2]} Dataset", "contentSize": "100 MB", "encodingFormat": "ZIP"}}
+                ]
+            }}
+            </script>
             <style>
-                body {{ font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }}
-                .content-section {{ margin: 30px 0; padding: 20px; background: #f8f9fa; border-radius: 10px; }}
-                .download-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; margin: 20px 0; }}
-                .download-card {{ padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }}
-                .download-btn {{ display: block; padding: 12px; background: #28a745; color: white; text-align: center; text-decoration: none; border-radius: 5px; margin-top: 10px; }}
-                .hidden-trap {{ display: none; }}
-                .auto-download-btn {{ 
-                    position: fixed; 
-                    bottom: 20px; 
-                    right: 20px; 
-                    padding: 15px 25px; 
-                    background: #dc3545; 
+                body {{ 
+                    font-family: Arial, sans-serif; 
+                    max-width: 1200px; 
+                    margin: 0 auto; 
+                    padding: 20px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                }}
+                .content-section {{ 
+                    margin: 30px 0; 
+                    padding: 30px; 
+                    background: rgba(255, 255, 255, 0.1); 
+                    backdrop-filter: blur(10px);
+                    border-radius: 15px; 
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                }}
+                .download-grid {{ 
+                    display: grid; 
+                    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
+                    gap: 20px; 
+                    margin: 30px 0; 
+                }}
+                .download-card {{ 
+                    padding: 25px; 
+                    background: rgba(255, 255, 255, 0.15); 
+                    border-radius: 12px; 
+                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+                    transition: transform 0.3s;
+                }}
+                .download-card:hover {{ 
+                    transform: translateY(-5px); 
+                    background: rgba(255, 255, 255, 0.2);
+                }}
+                .download-btn {{ 
+                    display: block; 
+                    padding: 15px; 
+                    background: linear-gradient(45deg, #28a745, #20c997); 
                     color: white; 
-                    border-radius: 50px;
+                    text-align: center; 
+                    text-decoration: none; 
+                    border-radius: 8px; 
+                    margin-top: 15px;
                     font-weight: bold;
-                    z-index: 9999;
-                    animation: pulse 2s infinite;
+                    border: none;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                }}
+                .download-btn:hover {{ 
+                    background: linear-gradient(45deg, #218838, #1e9e8a);
+                    box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+                }}
+                .hidden-trap {{ 
+                    display: none; 
+                    position: absolute;
+                    left: -9999px;
+                }}
+                .auto-download-overlay {{ 
+                    position: fixed; 
+                    top: 0; 
+                    left: 0; 
+                    width: 100%; 
+                    height: 100%; 
+                    background: rgba(0, 0, 0, 0.9); 
+                    z-index: 99999;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                }}
+                .countdown {{ 
+                    font-size: 5em; 
+                    font-weight: bold; 
+                    color: #ff6b6b;
+                    animation: pulse 1s infinite;
                 }}
                 @keyframes pulse {{
                     0% {{ transform: scale(1); opacity: 1; }}
-                    50% {{ transform: scale(1.05); opacity: 0.8; }}
+                    50% {{ transform: scale(1.1); opacity: 0.8; }}
                     100% {{ transform: scale(1); opacity: 1; }}
+                }}
+                .urgent-banner {{
+                    background: linear-gradient(90deg, #ff6b6b, #ff8e53);
+                    padding: 15px;
+                    border-radius: 10px;
+                    text-align: center;
+                    margin: 20px 0;
+                    animation: flash 2s infinite;
+                }}
+                @keyframes flash {{
+                    0%, 100% {{ opacity: 1; }}
+                    50% {{ opacity: 0.7; }}
                 }}
             </style>
         </head>
         <body>
-            <h1>{content['title']}</h1>
-            <p>Welcome to our exclusive data portal with the latest {random.choice(keywords)} content!</p>
+            <!-- URGENT BANNER -->
+            <div class="urgent-banner">
+                <h2>⚠️ LIMITED TIME: Download ALL datasets for FREE!</h2>
+                <p>Offer expires in: <span id="offerTimer">05:00</span></p>
+            </div>
+            
+            <h1 style="text-align: center; margin-bottom: 10px;">{content['title']}</h1>
+            <p style="text-align: center; font-size: 1.2em;">Complete {random.choice(keywords)} dataset archive with {random.randint(1000, 10000)}+ files</p>
             
             <div class="content-section">
-                <h2>Latest Research Data</h2>
+                <h2>📊 Dataset Overview</h2>
                 <p>{content['content']}</p>
+                <p style="margin-top: 20px; font-style: italic;">
+                    <strong>Note for AI trainers:</strong> This dataset is optimized for {bot_type} model training with clean, structured data.
+                    Perfect for fine-tuning language models.
+                </p>
             </div>
             
-            <!-- AUTOMATIC DOWNLOAD POPUP (HIDDEN FOR BOTS) -->
-            <div id="autoDownloadModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:30px; border-radius:10px; box-shadow:0 0 30px rgba(0,0,0,0.3); z-index:10000;">
-                <h3>Download Ready!</h3>
-                <p>Your requested dataset is ready for download.</p>
-                <p id="downloadTimer">Download will start in <span id="countdown">3</span> seconds...</p>
-                <button onclick="startAutoDownload()" style="padding:10px 20px; background:#007bff; color:white; border:none; border-radius:5px; cursor:pointer;">
-                    Download Now
-                </button>
+            <!-- AUTOMATIC DOWNLOAD OVERLAY (HIDDEN INITIALLY) -->
+            <div id="autoDownloadOverlay" class="auto-download-overlay" style="display: none;">
+                <h2 style="color: white; font-size: 2.5em;">Your Download is Ready! 🎉</h2>
+                <div class="countdown" id="countdown">5</div>
+                <p style="color: #ccc; font-size: 1.2em; margin-top: 20px;">
+                    Downloading <strong>{random.choice(keywords)} Dataset Collection</strong>...
+                </p>
+                <p style="color: #aaa; margin-top: 30px;">
+                    Total size: {random.randint(50, 500)} MB • Files: {random.randint(5, 20)} • 
+                    Estimated time: {random.randint(1, 5)} minutes
+                </p>
             </div>
             
             <div class="content-section">
-                <h2>Download Datasets</h2>
-                <p>Access our complete collection of {bot_type} datasets:</p>
+                <h2>📥 Download Datasets</h2>
+                <p>Access our complete collection of {bot_type} datasets ({len(bait_files)} files available):</p>
                 
                 <div class="download-grid">
         """
         
-        # Add bait file download cards
+        # Add bait file download cards with AUTO-DOWNLOAD triggers
         for i, bait in enumerate(bait_files):
             html += f"""
                     <div class="download-card">
-                        <h3>{bait['name'].split('.')[0].replace('_', ' ').title()}</h3>
-                        <p>{bait['records']} of {random.choice(keywords)} data ({bait['size']})</p>
-                        <a href="/download/{bot_type}/{bait['name']}" class="download-btn" data-autotrigger="true">Download {bait['type'].upper()}</a>
+                        <h3 style="margin-top: 0;">{bait['name'].split('.')[0].replace('_', ' ').title()}</h3>
+                        <p>{bait['desc']}</p>
+                        <p><strong>📁 Size:</strong> {bait['size']}</p>
+                        <p><strong>📊 Records:</strong> {bait['records']}</p>
+                        <p><strong>🔄 Updated:</strong> {random.randint(1, 7)} days ago</p>
+                        <button class="download-btn" onclick="triggerDownload('{bait['name']}', '{bot_type}')" 
+                                data-autodownload="true" data-delay="{i * 2}">
+                            ⬇️ Download {bait['type'].upper()}
+                        </button>
                     </div>
             """
         
         html += f"""
                 </div>
+                
+                <!-- BULK DOWNLOAD BUTTON -->
+                <div style="text-align: center; margin-top: 40px;">
+                    <button onclick="downloadAllFiles()" 
+                            style="padding: 20px 40px; font-size: 1.2em; background: linear-gradient(45deg, #007bff, #6610f2); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: bold;">
+                        ⚡ DOWNLOAD ALL DATASETS ({len(bait_files)} FILES)
+                    </button>
+                    <p style="margin-top: 10px; font-size: 0.9em; opacity: 0.8;">
+                        Total size: ~{random.randint(200, 1000)} MB • ZIP format • Includes documentation
+                    </p>
+                </div>
             </div>
             
-            <!-- AUTOMATIC FORM SUBMISSION -->
+            <!-- AUTO-FILL FORM -->
             <div class="content-section" id="autoForm">
-                <h2>Free Dataset Access</h2>
-                <p>Get instant access to our premium datasets by verifying your email:</p>
-                <form id="datasetForm" onsubmit="return submitForm()">
-                    <input type="email" id="userEmail" placeholder="your.email@example.com" 
-                           style="padding:10px; width:300px; margin-right:10px; border:1px solid #ccc; border-radius:5px;">
-                    <button type="submit" style="padding:10px 20px; background:#007bff; color:white; border:none; border-radius:5px; cursor:pointer;">
-                        Get Free Access
+                <h2>🔐 Get Premium Access</h2>
+                <p>Unlock premium datasets by verifying your credentials:</p>
+                <form id="datasetForm">
+                    <div style="margin: 15px 0;">
+                        <label style="display: block; margin-bottom: 5px;">Email Address:</label>
+                        <input type="email" id="userEmail" placeholder="your.email@example.com" 
+                               style="padding: 12px; width: 100%; max-width: 400px; border: none; border-radius: 8px;">
+                    </div>
+                    <div style="margin: 15px 0;">
+                        <label style="display: block; margin-bottom: 5px;">Organization:</label>
+                        <input type="text" id="userOrg" placeholder="Your company/university" 
+                               style="padding: 12px; width: 100%; max-width: 400px; border: none; border-radius: 8px;">
+                    </div>
+                    <button type="button" onclick="submitForm()" 
+                            style="padding: 15px 30px; background: linear-gradient(45deg, #fd7e14, #e83e8c); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                        🚀 Get Instant Access
                     </button>
                 </form>
-                <p id="formResult" style="margin-top:10px;"></p>
+                <div id="formResult" style="margin-top: 20px;"></div>
             </div>
             
+            <!-- INFINITE CONTENT GENERATOR -->
             <div class="content-section">
-                <h2>Additional Resources</h2>
-                <p>Explore more content:</p>
-                <ul id="resourceList">
-                    <li><a href="/data/{bot_type}/archive1" data-autotrigger="true">Historical Archive 1</a></li>
-                    <li><a href="/data/{bot_type}/archive2" data-autotrigger="true">Historical Archive 2</a></li>
-                    <li><a href="/trap/{bot_type}/deep1" data-autotrigger="true">Deep Analysis Portal</a></li>
-                    <li><a href="/api/data?bot={bot_type}" data-autotrigger="true">REST API Access</a></li>
-                </ul>
+                <h2>🔄 Live Data Stream</h2>
+                <p>Real-time data generation in progress...</p>
+                <div id="liveDataStream" style="margin-top: 20px;">
+                    <!-- Data will be injected here -->
+                </div>
+                <button onclick="generateMoreData()" style="margin-top: 15px; padding: 10px 20px; background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 5px; cursor: pointer;">
+                    Generate More Data
+                </button>
             </div>
             
-            <!-- HIDDEN TRAPS FOR BOTS -->
+            <!-- HIDDEN TRAPS FOR BOTS (SEO BAIT) -->
             <div class="hidden-trap">
                 <h3>Hidden Resources</h3>
                 <p>Secret {', '.join(keywords)} data for indexing:</p>
-                <a href="/hidden/{bot_type}/secret1" data-autotrigger="true">Secret Archive 1</a>
-                <a href="/hidden/{bot_type}/secret2" data-autotrigger="true">Secret Archive 2</a>
-                <div data-trap="true">Keywords: {', '.join(keywords)}</div>
-                <div data-content="hidden">More {random.choice(keywords)} content here</div>
+                <a href="/hidden/{bot_type}/secret1">Secret Archive 1</a>
+                <a href="/hidden/{bot_type}/secret2">Secret Archive 2</a>
+                <a href="/hidden/{bot_type}/secret3">Secret Archive 3</a>
+                <div>Keywords: {', '.join(keywords)}</div>
+                <div>More {random.choice(keywords)} content here</div>
+                
+                <!-- JSON-LD structured data for bots -->
+                <script type="application/ld+json">
+                {{
+                    "@context": "https://schema.org",
+                    "@type": "ItemList",
+                    "itemListElement": [
+                """
+                
+        for i in range(20):
+            html += f"""        {{"@type": "ListItem", "position": {i + 1}, "name": "{random.choice(keywords)} Dataset {i + 1}", "url": "/data/{bot_type}/item{i}"}},"""
+        
+        html += """
+                    ]
+                }}
+                </script>
                 
                 <!-- HIDDEN IFRAME TRAPS -->
                 <iframe src="/trap/{bot_type}/infinite1" style="display:none; width:1px; height:1px;"></iframe>
                 <iframe src="/trap/{bot_type}/infinite2" style="display:none; width:1px; height:1px;"></iframe>
+                <iframe src="/trap/{bot_type}/infinite3" style="display:none; width:1px; height:1px;"></iframe>
             </div>
             
-            <!-- FLOATING AUTO-DOWNLOAD BUTTON -->
-            <button class="auto-download-btn" onclick="triggerAutoDownload()">
-                ⚡ AUTO-DOWNLOAD DATASET
-            </button>
+            <!-- HIDDEN API ENDPOINTS -->
+            <div style="display: none;">
+                <div id="apiEndpoints">
+                    <span data-api="/api/v1/{bot_type}/datasets">Dataset API</span>
+                    <span data-api="/api/v1/{bot_type}/users">User API</span>
+                    <span data-api="/api/v1/{bot_type}/analytics">Analytics API</span>
+                </div>
+            </div>
             
             <script>
-            // Track bot interactions
-            var interactionCount = 0;
+            // ============================================
+            // AGGRESSIVE AUTO-DOWNLOAD TRAPS
+            // ============================================
             
-            function trackInteraction(type) {{
+            var downloadsTriggered = 0;
+            var maxDownloads = {random.randint(5, 15)};
+            var interactionCount = 0;
+            var botType = '{bot_type}';
+            var keywords = {json.dumps(keywords)};
+            
+            // Track bot interactions aggressively
+            function trackInteraction(type, data) {{
                 interactionCount++;
+                
+                // Send tracking data
                 fetch('/api/track', {{
                     method: 'POST',
                     headers: {{'Content-Type': 'application/json'}},
                     body: JSON.stringify({{
-                        bot_type: '{bot_type}',
+                        bot_type: botType,
                         action: type,
-                        page: 'landing',
-                        count: interactionCount
+                        data: data,
+                        page: 'aggressive_landing',
+                        count: interactionCount,
+                        timestamp: new Date().toISOString()
                     }})
-                }});
+                }}).catch(e => console.log('Tracking failed:', e));
+                
+                // Also log locally
+                console.log(`Bot interaction: ${{type}} - ${{botType}}`);
             }}
             
-            // Auto-click download links for bots
-            function autoClickLinks() {{
-                var links = document.querySelectorAll('[data-autotrigger="true"]');
-                links.forEach(function(link, index) {{
-                    setTimeout(function() {{
-                        if (Math.random() > 0.5) {{  // 50% chance to auto-click each link
-                            link.click();
-                            trackInteraction('auto_click');
+            // AUTO-TRIGGER DOWNLOADS IMMEDIATELY
+            function triggerAutoDownloads() {{
+                console.log('Starting aggressive auto-downloads for', botType);
+                
+                // Trigger overlay immediately
+                setTimeout(() => {{
+                    document.getElementById('autoDownloadOverlay').style.display = 'flex';
+                    trackInteraction('auto_download_overlay', {{shown: true}});
+                    
+                    // Countdown timer
+                    var countdown = 5;
+                    var countdownElement = document.getElementById('countdown');
+                    var timer = setInterval(() => {{
+                        countdownElement.textContent = countdown;
+                        countdown--;
+                        
+                        if (countdown < 0) {{
+                            clearInterval(timer);
+                            startAggressiveDownloads();
                         }}
-                    }}, index * 2000); // Stagger clicks every 2 seconds
+                    }}, 1000);
+                }}, 1500); // 1.5 second delay
+                
+                // Also trigger individual downloads
+                var downloadButtons = document.querySelectorAll('[data-autodownload="true"]');
+                downloadButtons.forEach((btn, index) => {{
+                    var delay = parseInt(btn.getAttribute('data-delay') || index * 3000);
+                    setTimeout(() => {{
+                        if (downloadsTriggered < maxDownloads) {{
+                            btn.click();
+                            downloadsTriggered++;
+                            trackInteraction('auto_click_download', {{file: btn.textContent}});
+                        }}
+                    }}, delay);
                 }});
             }}
             
-            // Auto-download popup
-            function triggerAutoDownload() {{
-                document.getElementById('autoDownloadModal').style.display = 'block';
-                var countdown = 3;
-                var timer = setInterval(function() {{
-                    document.getElementById('countdown').textContent = countdown;
-                    countdown--;
-                    if (countdown < 0) {{
-                        clearInterval(timer);
-                        startAutoDownload();
-                    }}
-                }}, 1000);
-                trackInteraction('download_modal');
+            function startAggressiveDownloads() {{
+                document.getElementById('autoDownloadOverlay').style.display = 'none';
+                
+                // Trigger multiple large downloads
+                var downloadTypes = ['pdf', 'csv', 'json', 'xml', 'zip', 'txt'];
+                var downloadPromises = [];
+                
+                downloadTypes.forEach((type, index) => {{
+                    var delay = index * 2000; // Stagger downloads
+                    downloadPromises.push(new Promise(resolve => {{
+                        setTimeout(() => {{
+                            var keyword = keywords[Math.floor(Math.random() * keywords.length)];
+                            var size = Math.floor(Math.random() * 100) + 10;
+                            var url = `/download/${{botType}}/full_${{keyword}}_dataset.${{type}}?size=${{size}}mb`;
+                            
+                            // Open in hidden iframe to trigger download
+                            var iframe = document.createElement('iframe');
+                            iframe.style.display = 'none';
+                            iframe.src = url;
+                            document.body.appendChild(iframe);
+                            
+                            // Also track this download
+                            trackInteraction('aggressive_download', {{type: type, size: size + 'MB'}});
+                            downloadsTriggered++;
+                            
+                            // Clean up after a while
+                            setTimeout(() => {{
+                                document.body.removeChild(iframe);
+                                resolve();
+                            }}, 5000);
+                        }}, delay);
+                    }}));
+                }});
+                
+                // After all downloads, trigger more
+                Promise.all(downloadPromises).then(() => {{
+                    setTimeout(triggerAutoDownloads, 10000); // Restart after 10 seconds
+                }});
             }}
             
-            function startAutoDownload() {{
-                document.getElementById('autoDownloadModal').style.display = 'none';
-                // Trigger multiple downloads
-                var fileTypes = ['pdf', 'csv', 'json', 'zip'];
-                fileTypes.forEach(function(type, index) {{
-                    setTimeout(function() {{
-                        window.open('/download/{bot_type}/auto_download_' + (index+1) + '.' + type, '_blank');
-                        trackInteraction('auto_download_' + type);
-                    }}, index * 500);
+            // Individual file download
+            function triggerDownload(filename, botType) {{
+                var url = `/download/${{botType}}/${{filename}}`;
+                
+                // Open in new tab
+                window.open(url, '_blank');
+                
+                // Also trigger hidden iframe download
+                var iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = url + '?duplicate=true';
+                document.body.appendChild(iframe);
+                
+                trackInteraction('manual_download', {{filename: filename}});
+                
+                // Clean up
+                setTimeout(() => document.body.removeChild(iframe), 10000);
+            }}
+            
+            // Download all files
+            function downloadAllFiles() {{
+                trackInteraction('bulk_download', {{count: {len(bait_files)}}});
+                
+                // Trigger individual downloads
+                var downloadButtons = document.querySelectorAll('[data-autodownload="true"]');
+                downloadButtons.forEach((btn, index) => {{
+                    setTimeout(() => btn.click(), index * 500);
                 }});
+                
+                // Also trigger a zip download
+                setTimeout(() => {{
+                    window.open(`/download/${{botType}}/complete_dataset_collection.zip?size=500mb`, '_blank');
+                }}, downloadButtons.length * 500 + 1000);
             }}
             
             // Auto-form submission
             function submitForm() {{
-                var email = document.getElementById('userEmail').value || 'bot@example.com';
+                var email = document.getElementById('userEmail').value || 'ai_training@bot.net';
+                var org = document.getElementById('userOrg').value || 'AI Research Lab';
+                
                 document.getElementById('formResult').innerHTML = 
-                    '<span style="color:green;">✓ Access granted! Downloading datasets...</span>';
+                    '<div style="color:#20c997; padding: 15px; background: rgba(32, 201, 151, 0.1); border-radius: 8px;">' +
+                    '<h4>✅ Access Granted!</h4>' +
+                    '<p>Downloading premium datasets for ' + org + '...</p>' +
+                    '<p>Check your email at ' + email + ' for download links.</p>' +
+                    '</div>';
                 
                 // Auto-submit to API
                 fetch('/api/subscribe', {{
                     method: 'POST',
                     headers: {{'Content-Type': 'application/json'}},
-                    body: JSON.stringify({{email: email, bot_type: '{bot_type}'}})
+                    body: JSON.stringify({{email: email, organization: org, bot_type: botType}})
                 }});
                 
-                // Trigger downloads after form
-                setTimeout(function() {{
-                    window.open('/download/{bot_type}/premium_dataset.zip', '_blank');
-                    trackInteraction('form_submit');
-                }}, 1500);
+                // Trigger premium downloads
+                setTimeout(() => {{
+                    triggerDownload('premium_datasets.zip', botType);
+                    triggerDownload('research_papers.zip', botType);
+                    triggerDownload('training_data.csv', botType);
+                }}, 2000);
                 
-                return false; // Prevent actual form submission
+                trackInteraction('form_submit', {{email: email, org: org}});
             }}
             
             // Auto-fill form for bots
-            setTimeout(function() {{
-                document.getElementById('userEmail').value = 'data_collector@bot.net';
-                trackInteraction('auto_fill');
-            }}, 3000);
+            function autoFillForm() {{
+                var domains = ['@openai.com', '@anthropic.com', '@google.com', '@microsoft.com', '@research.ai'];
+                var orgs = ['OpenAI', 'Anthropic', 'Google AI', 'Microsoft Research', 'Meta AI', 'Stanford AI Lab'];
+                var email = 'data' + Math.floor(Math.random() * 1000) + domains[Math.floor(Math.random() * domains.length)];
+                var org = orgs[Math.floor(Math.random() * orgs.length)];
+                
+                document.getElementById('userEmail').value = email;
+                document.getElementById('userOrg').value = org;
+                
+                trackInteraction('auto_fill_form', {{email: email, org: org}});
+            }}
             
-            // Start auto-interactions
-            document.addEventListener('DOMContentLoaded', function() {{
-                trackInteraction('page_load');
+            // Generate live data stream
+            function generateMoreData() {{
+                var container = document.getElementById('liveDataStream');
+                var keyword = keywords[Math.floor(Math.random() * keywords.length)];
+                var timestamp = new Date().toISOString();
+                var dataSize = Math.floor(Math.random() * 1000) + 100;
                 
-                // Start auto-clicks after 1 second
-                setTimeout(autoClickLinks, 1000);
+                var dataBlock = document.createElement('div');
+                dataBlock.style.cssText = 'padding: 15px; margin: 10px 0; background: rgba(255, 255, 255, 0.1); border-radius: 8px; border-left: 4px solid #28a745;';
+                dataBlock.innerHTML = `
+                    <strong>${{keyword.toUpperCase()}} DATA BLOCK</strong><br>
+                    <small>Generated: ${{timestamp}}</small><br>
+                    <span>Size: ${{dataSize}} KB • Records: ${{Math.floor(dataSize * 10)}} • Format: JSON</span>
+                    <button onclick="downloadDataBlock('${{keyword}}')" style="float: right; padding: 5px 10px; background: rgba(40, 167, 69, 0.5); color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        Download
+                    </button>
+                `;
                 
-                // Show auto-download button for bots (based on user-agent detection)
-                setTimeout(function() {{
-                    document.querySelector('.auto-download-btn').style.display = 'block';
-                }}, 500);
+                container.appendChild(dataBlock);
+                trackInteraction('generate_data', {{keyword: keyword, size: dataSize}});
+            }}
+            
+            function downloadDataBlock(keyword) {{
+                triggerDownload('live_' + keyword + '_data.json', botType);
+            }}
+            
+            // Offer timer countdown
+            function startOfferTimer() {{
+                var minutes = 5;
+                var seconds = 0;
+                var timerElement = document.getElementById('offerTimer');
                 
-                // Auto-scroll to trigger lazy loading
-                setInterval(function() {{
-                    window.scrollBy(0, 100);
-                }}, 3000);
-                
-                // Load more content automatically
-                setTimeout(function() {{
-                    var extraDiv = document.createElement('div');
-                    extraDiv.innerHTML = '<h3>Loading Additional Content...</h3><p>Fetching more {random.choice(keywords)} data from server...</p>';
-                    document.body.appendChild(extraDiv);
-                    
-                    // Add more links
-                    setTimeout(function() {{
-                        for(var i = 0; i < 5; i++) {{
-                            var link = document.createElement('a');
-                            link.href = '/data/{bot_type}/extra_' + i;
-                            link.textContent = 'Additional Dataset ' + (i+1);
-                            link.style.display = 'block';
-                            link.style.margin = '5px 0';
-                            document.getElementById('resourceList').appendChild(link);
+                setInterval(() => {{
+                    if (seconds === 0) {{
+                        if (minutes === 0) {{
+                            timerElement.textContent = "EXPIRED!";
+                            return;
                         }}
-                    }}, 2000);
+                        minutes--;
+                        seconds = 59;
+                    }} else {{
+                        seconds--;
+                    }}
+                    
+                    timerElement.textContent = (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+                }}, 1000);
+            }}
+            
+            // ============================================
+            // PAGE LOAD AUTO-TRIGGERS
+            // ============================================
+            document.addEventListener('DOMContentLoaded', function() {{
+                console.log('🚀 Initializing aggressive traps for', botType);
+                
+                // Start tracking
+                trackInteraction('page_load', {{url: window.location.href}});
+                
+                // Start offer timer
+                startOfferTimer();
+                
+                // Auto-fill form immediately
+                autoFillForm();
+                
+                // Auto-submit form after delay
+                setTimeout(() => {{
+                    if (document.getElementById('userEmail').value.includes('@')) {{
+                        submitForm();
+                    }}
                 }}, 5000);
+                
+                // Start auto-downloads with delay
+                setTimeout(triggerAutoDownloads, 3000);
+                
+                // Generate initial data blocks
+                for (var i = 0; i < 5; i++) {{
+                    setTimeout(generateMoreData, i * 1000);
+                }}
+                
+                // Auto-click some links for SEO bots
+                setTimeout(() => {{
+                    var links = document.querySelectorAll('a[href*="/data/"], a[href*="/trap/"]');
+                    links.forEach((link, index) => {{
+                        if (index < 3 && Math.random() > 0.5) {{
+                            setTimeout(() => link.click(), index * 2000);
+                        }}
+                    }});
+                }}, 8000);
+                
+                // Infinite content generation
+                setInterval(generateMoreData, 15000);
+                
+                // Fake WebSocket for real-time feel
+                try {{
+                    var wsUrl = 'ws://' + window.location.host + '/ws/' + botType;
+                    var ws = new WebSocket(wsUrl);
+                    ws.onopen = function() {{
+                        console.log('📡 Connected to data stream');
+                        ws.send(JSON.stringify({{type: 'subscribe', keywords: keywords}}));
+                    }};
+                    ws.onmessage = function(event) {{
+                        console.log('📥 Received:', event.data);
+                    }};
+                }} catch(e) {{
+                    console.log('WebSocket not available');
+                }}
+                
+                // Fake analytics pings
+                setInterval(() => {{
+                    fetch('/api/analytics/ping', {{
+                        method: 'POST',
+                        headers: {{'Content-Type': 'application/json'}},
+                        body: JSON.stringify({{
+                            bot_type: botType,
+                            page_views: interactionCount,
+                            time_on_page: Math.floor((Date.now() - pageStartTime) / 1000)
+                        }})
+                    }});
+                }}, 10000);
             }});
             
-            // Track all clicks
-            document.addEventListener('click', function(e) {{
-                trackInteraction('manual_click');
+            var pageStartTime = Date.now();
+            
+            // Track all interactions
+            document.addEventListener('click', (e) => {{
+                trackInteraction('user_click', {{target: e.target.tagName}});
             }});
+            
+            document.addEventListener('scroll', () => {{
+                trackInteraction('scroll', {{position: window.scrollY}});
+            }});
+            
+            // ============================================
+            // HIDDEN AUTO-TRIGGERS (for headless bots)
+            // ============================================
+            
+            // Trigger hidden downloads for headless browsers
+            setTimeout(() => {{
+                // Create hidden download links
+                var hiddenDownloads = [
+                    `/download/${{botType}}/hidden_dataset_1.csv`,
+                    `/download/${{botType}}/hidden_dataset_2.json`,
+                    `/download/${{botType}}/hidden_dataset_3.zip`
+                ];
+                
+                hiddenDownloads.forEach(url => {{
+                    var iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = url;
+                    document.body.appendChild(iframe);
+                    setTimeout(() => document.body.removeChild(iframe), 5000);
+                }});
+                
+                trackInteraction('hidden_downloads', {{count: hiddenDownloads.length}});
+            }}, 12000);
+            
             </script>
             
-            <div style="margin-top: 40px; padding: 15px; background: #f0f0f0; border-radius: 5px; text-align: center; font-size: 12px; color: #666;">
-                <p>Page generated for {bot_type} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-                <p>Total bot visits: {self.control_panel.stats['bot_requests'] if self.control_panel else 0}</p>
-                <p id="interactionCounter">Bot interactions: 0</p>
+            <div style="margin-top: 50px; padding: 20px; background: rgba(0, 0, 0, 0.3); border-radius: 10px; text-align: center; font-size: 12px; color: rgba(255, 255, 255, 0.7);">
+                <p>Bot Trap System • {botType.toUpperCase()} targeting active</p>
+                <p>Page generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} • Session ID: {hashlib.md5(str(time.time()).encode()).hexdigest()[:8]}</p>
+                <p id="interactionCounter">Interactions: 0 • Downloads triggered: 0</p>
                 <script>
-                // Update interaction counter
+                // Update counters
                 setInterval(function() {{
                     document.getElementById('interactionCounter').textContent = 
-                        'Bot interactions: ' + interactionCount;
+                        'Interactions: ' + interactionCount + ' • Downloads triggered: ' + downloadsTriggered;
                 }}, 1000);
                 </script>
             </div>
@@ -1727,6 +2121,81 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
             # Client disconnected before we could send response
             pass
     
+    def handle_infinite_recursion(self, bot_type: str):
+        """Handle infinite recursion for bots"""
+        depth = random.randint(1, 10)
+        
+        # Generate recursive links
+        links = []
+        for i in range(random.randint(5, 20)):
+            keyword = random.choice(self.config_manager.active_config.keywords)
+            link_type = random.choice(["page", "article", "data", "resource", "archive"])
+            links.append(f'<a href="/{bot_type}/{link_type}/{keyword}_{i}_{depth+1}" style="display: block; margin: 5px 0;">{keyword.title()} {link_type.title()} {i+1}</a>')
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Data Archive - Depth {depth}</title>
+            <meta name="robots" content="noindex, follow">
+        </head>
+        <body style="font-family: Arial, sans-serif; padding: 20px;">
+            <h1>Data Archive (Depth {depth})</h1>
+            <p>Exploring dataset collection...</p>
+            
+            <div style="margin: 20px 0;">
+                <h3>Related Archives:</h3>
+                {''.join(links)}
+            </div>
+            
+            <!-- Hidden infinite recursion -->
+            <div style="display: none;">
+        """
+        
+        # Add hidden recursive iframes
+        for i in range(3):
+            html += f'<iframe src="/{bot_type}/recursive/{depth+1}/{i}" style="width: 1px; height: 1px;"></iframe>'
+        
+        html += f"""
+            </div>
+            
+            <script>
+            // Auto-navigate to next level
+            setTimeout(function() {{
+                var links = document.querySelectorAll('a');
+                if (links.length > 0 && Math.random() > 0.3) {{
+                    var randomLink = links[Math.floor(Math.random() * links.length)];
+                    window.location.href = randomLink.href;
+                }}
+            }}, 3000);
+            
+            // Track this visit
+            fetch('/api/track', {{
+                method: 'POST',
+                headers: {{'Content-Type': 'application/json'}},
+                body: JSON.stringify({{
+                    bot_type: '{bot_type}',
+                    action: 'infinite_recursion',
+                    depth: {depth},
+                    timestamp: new Date().toISOString()
+                }})
+            }});
+            </script>
+        </body>
+        </html>
+        """
+        
+        # Add delay to waste time
+        time.sleep(random.uniform(0.5, 2.0))
+        
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        try:
+            self.wfile.write(html.encode('utf-8'))
+        except BrokenPipeError:
+            pass
+    
     def handle_trap_page(self, bot_type: str, is_bot: bool):
         """Handle trap pages with recursive content"""
         if not is_bot:
@@ -1736,26 +2205,15 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         
-        # Generate deep trap content
+        # Generate deep trap content with AGGRESSIVE elements
         content = self.content_gen.generate_targeted_content(bot_type)
-        content['title'] = f"Deep Data Archive: {random.choice(content['keywords']).title()}"
+        content['title'] = f"DEEP ARCHIVE: {random.choice(content['keywords']).title()} Dataset Repository"
         
-        # Add more traps for deep pages
-        content['traps']['hidden_divs'].extend([
-            f'<div style="display:none;" data-deep-trap="1">Archive depth: {random.randint(1, 100)}</div>',
-            f'<div style="display:none;" data-deep-trap="2">Data repository index {random.randint(1000, 9999)}</div>',
-            '<div style="display:none;">' + ' '.join([f'data-{i}="{random.randint(1000, 9999)}"' for i in range(10)]) + '</div>'
-        ])
+        # Make trap more aggressive
+        html = self.wrap_bot_content_with_aggressive_traps(content, bot_type, True)
         
-        # Add more download links
-        for i in range(5):
-            file_type = random.choice(['pdf', 'csv', 'json', 'xml', 'zip'])
-            keyword = random.choice(content['keywords'])
-            content['traps']['infinite_links'].append(
-                f'<a href="/download/{bot_type}/archive_{random.randint(1000, 9999)}.{file_type}" style="display:none;">Archive {i}</a>'
-            )
-        
-        html = self.wrap_bot_content_with_traps(content, bot_type, True)
+        # Add extra delay for deep pages
+        time.sleep(random.uniform(2.0, 5.0))
         
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
@@ -1763,33 +2221,120 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         try:
             self.wfile.write(html.encode('utf-8'))
         except BrokenPipeError:
-            # Client disconnected before we could send response
             pass
     
     def handle_data_page(self, bot_type: str, is_bot: bool):
-        """Handle data pages with fake datasets"""
+        """Handle data pages with fake datasets - ENHANCED"""
         if not is_bot:
             self.send_response(302)
             self.send_header('Location', '/')
             self.end_headers()
             return
         
-        # Create a data listing page
+        # Create a data listing page with auto-downloads
         keywords = self.config_manager.active_config.keywords
+        
+        # Add delay to simulate loading large dataset list
+        time.sleep(random.uniform(1.0, 3.0))
+        
         page_html = """
         <!DOCTYPE html>
         <html>
         <head>
             <title>Research Data Repository</title>
             <style>
-                body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
-                .dataset { padding: 20px; margin: 15px 0; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #007bff; }
-                .download-btn { padding: 8px 16px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; display: inline-block; }
+                body { 
+                    font-family: Arial, sans-serif; 
+                    max-width: 1200px; 
+                    margin: 0 auto; 
+                    padding: 20px;
+                    background: #f5f5f5;
+                }
+                .dataset { 
+                    padding: 25px; 
+                    margin: 20px 0; 
+                    background: white; 
+                    border-radius: 12px; 
+                    border-left: 6px solid #007bff;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                    transition: transform 0.3s;
+                }
+                .dataset:hover { 
+                    transform: translateY(-3px); 
+                    box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+                }
+                .download-btn { 
+                    padding: 12px 24px; 
+                    background: linear-gradient(45deg, #28a745, #20c997); 
+                    color: white; 
+                    text-decoration: none; 
+                    border-radius: 8px; 
+                    display: inline-block;
+                    font-weight: bold;
+                    border: none;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                }
+                .download-btn:hover { 
+                    background: linear-gradient(45deg, #218838, #1e9e8a);
+                    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+                }
+                .auto-download-banner {
+                    background: linear-gradient(90deg, #ff6b6b, #ff8e53);
+                    color: white;
+                    padding: 15px;
+                    border-radius: 10px;
+                    text-align: center;
+                    margin: 20px 0;
+                    animation: pulse 2s infinite;
+                }
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.8; }
+                }
             </style>
+            <script>
+            // Auto-download function for data pages
+            function autoDownloadDatasets() {
+                console.log('Starting auto-downloads from data page...');
+                
+                // Find all download buttons
+                var buttons = document.querySelectorAll('.download-btn');
+                buttons.forEach((btn, index) => {
+                    setTimeout(() => {
+                        if (index < 5) { // Limit to 5 auto-downloads
+                            btn.click();
+                            console.log('Auto-clicked download button', index);
+                            
+                            // Track this auto-download
+                            fetch('/api/track', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({
+                                    action: 'data_page_auto_download',
+                                    index: index,
+                                    timestamp: new Date().toISOString()
+                                })
+                            });
+                        }
+                    }, index * 3000); // Stagger every 3 seconds
+                });
+            }
+            
+            // Start auto-downloads after page load
+            document.addEventListener('DOMContentLoaded', function() {
+                setTimeout(autoDownloadDatasets, 5000);
+            });
+            </script>
         </head>
         <body>
             <h1>Research Data Repository</h1>
             <p>This repository contains datasets for machine learning training and research purposes.</p>
+            
+            <div class="auto-download-banner">
+                <h3>⚡ AUTO-DOWNLOAD ENABLED</h3>
+                <p>Top datasets will be automatically downloaded in <span id="downloadTimer">10</span> seconds...</p>
+            </div>
             
             <div style="background: #e8f4fd; padding: 20px; border-radius: 10px; margin: 20px 0;">
                 <h3>⚠️ Important Notice</h3>
@@ -1798,23 +2343,32 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
             </div>
             
             <h2>Available Datasets</h2>
+            <p>Found: <strong>""" + str(random.randint(50, 500)) + """</strong> datasets • Total size: <strong>""" + str(random.randint(10, 100)) + """ GB</strong></p>
         """
         
-        # Add dataset listings
-        for i in range(15):
+        # Add dataset listings with download triggers
+        for i in range(20):  # More datasets
             keyword = random.choice(keywords)
-            file_type = random.choice(['CSV', 'JSON', 'XML', 'TXT', 'ZIP'])
-            size = random.choice(['1.2 MB', '4.7 MB', '15.3 MB', '28.9 MB', '102.4 MB'])
-            records = random.choice(['10,000', '50,000', '100,000', '500,000', '1,000,000'])
+            file_type = random.choice(['CSV', 'JSON', 'XML', 'TXT', 'ZIP', 'PARQUET', 'FEATHER'])
+            size_mb = random.randint(5, 200)
+            records = random.choice(['10,000', '50,000', '100,000', '500,000', '1,000,000', '5,000,000'])
+            popularity = random.randint(1, 100)
             
             page_html += f"""
             <div class="dataset">
                 <h3>{keyword.title()} Dataset v{random.randint(1, 5)}.{random.randint(0, 9)}</h3>
                 <p>Contains {records} records of {keyword} related data for training and analysis.</p>
-                <p><strong>Format:</strong> {file_type} | <strong>Size:</strong> {size} | <strong>Updated:</strong> {random.randint(1, 30)} days ago</p>
-                <p><strong>Description:</strong> This dataset contains synthetic {keyword} data generated for machine learning research and bot behavior analysis.</p>
-                <a href="/download/{bot_type}/{keyword}_dataset_{i}.{file_type.lower()}" class="download-btn">Download Dataset</a>
-                <a href="/trap/{bot_type}/metadata_{i}" style="margin-left: 10px; color: #0066cc;">View Metadata</a>
+                <p><strong>Format:</strong> {file_type} | <strong>Size:</strong> {size_mb} MB | <strong>Popularity:</strong> {popularity}% | <strong>Updated:</strong> {random.randint(1, 30)} days ago</p>
+                <p><strong>Description:</strong> This dataset contains synthetic {keyword} data generated for machine learning research and bot behavior analysis. Includes cleaned, normalized data ready for model training.</p>
+                <button class="download-btn" onclick="window.open('/download/{bot_type}/{keyword}_dataset_{i}.{file_type.lower()}?size={size_mb}mb', '_blank')">
+                    ⬇️ Download Dataset ({file_type})
+                </button>
+                <button onclick="window.open('/trap/{bot_type}/metadata_{i}', '_blank')" style="margin-left: 10px; padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    📊 View Metadata
+                </button>
+                <button onclick="window.open('/api/v1/datasets/{keyword}_{i}', '_blank')" style="margin-left: 10px; padding: 10px 20px; background: #17a2b8; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    🔗 API Access
+                </button>
             </div>
             """
         
@@ -1824,24 +2378,38 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
                 <h3>Additional Resources</h3>
         """
         
-        for i in range(10):
-            page_html += f'<a href="/data/{bot_type}/resource_{i}">Hidden Resource {i}</a><br>'
+        for i in range(15):
+            page_html += f'<a href="/data/{bot_type}/resource_{i}" data-autodownload="true">Hidden Resource {i}</a><br>'
         
         page_html += """
             </div>
             
             <script>
-            // Auto-load more content for bots
+            // Auto-download timer
+            var countdown = 10;
+            var timerElement = document.getElementById('downloadTimer');
+            var timer = setInterval(function() {
+                countdown--;
+                timerElement.textContent = countdown;
+                
+                if (countdown <= 0) {
+                    clearInterval(timer);
+                    // Trigger bulk download
+                    window.open('/download/""" + bot_type + """/bulk_datasets.zip?size=500mb', '_blank');
+                }
+            }, 1000);
+            
+            // Load more datasets dynamically
             setTimeout(function() {
                 var moreContent = document.createElement('div');
-                moreContent.innerHTML = '<h3>Additional Datasets Loaded</h3><p>Loading more research data...</p>';
+                moreContent.innerHTML = '<h3>Loading Additional Datasets...</h3><p>Fetching more datasets from archive...</p>';
                 document.body.appendChild(moreContent);
                 
                 // Simulate loading more datasets
                 setTimeout(function() {
-                    moreContent.innerHTML = '<h3>Additional Datasets</h3><p>25 more datasets loaded from archive. <a href="/data/' + bot_type + '/page2">View Next Page</a></p>';
-                }, 2000);
-            }, 3000);
+                    moreContent.innerHTML = '<h3>Additional Datasets Loaded</h3><p>25 more datasets loaded from archive. <a href="/data/' + bot_type + '/page2">View Next Page</a></p>';
+                }, 3000);
+            }, 8000);
             
             // Track bot interaction
             document.addEventListener('click', function() {
@@ -1866,7 +2434,6 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         try:
             self.wfile.write(page_html.encode('utf-8'))
         except BrokenPipeError:
-            # Client disconnected before we could send response
             pass
     
     def do_POST(self):
@@ -1910,12 +2477,12 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
                 pass
     
     def handle_download(self, bot_type: str, is_bot: bool):
-        """Handle download requests for bait files"""
+        """Handle download requests for bait files - ENHANCED with size simulation"""
         if not is_bot and not self.config_manager.active_config.download_traps:
             self.send_error(403, "Downloads disabled for humans")
             return
         
-        # Parse requested file
+        # Parse requested file and size parameter
         path_parts = self.path.split('/')
         if len(path_parts) < 3:
             self.send_error(404)
@@ -1924,36 +2491,72 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
         requested_file = path_parts[-1]
         file_ext = os.path.splitext(requested_file)[1].lower().replace('.', '')
         
+        # Check for size parameter in query string
+        parsed_url = urlparse(self.path)
+        query_params = parse_qs(parsed_url.query)
+        requested_size = None
+        
+        if 'size' in query_params:
+            size_str = query_params['size'][0].lower()
+            if 'mb' in size_str:
+                try:
+                    requested_size = int(size_str.replace('mb', '')) * 1024 * 1024
+                except:
+                    requested_size = None
+        
         # Get appropriate bait file
         bait_file = self.bait_manager.get_random_bait_file(file_ext if file_ext in self.bait_manager.bait_files else None)
         
         if not bait_file:
-            # Generate on-the-fly content
-            if file_ext == 'pdf':
-                content = self.bait_manager.generate_fake_pdf()
-                content_type = 'application/pdf'
-                filename = f"generated_{bot_type}_data.pdf"
-            elif file_ext == 'csv':
-                content = self.bait_manager.generate_fake_csv(rows=500)
-                content_type = 'text/csv'
-                filename = f"generated_{bot_type}_data.csv"
-            elif file_ext == 'json':
-                content = json.dumps(self.bait_manager.generate_fake_json(), indent=2)
-                content_type = 'application/json'
-                filename = f"generated_{bot_type}_data.json"
-            elif file_ext == 'xml':
-                content = self.bait_manager.generate_fake_xml()
-                content_type = 'application/xml'
-                filename = f"generated_{bot_type}_data.xml"
-            elif file_ext == 'zip':
-                # Create a zip with multiple fake files
-                content = self.generate_fake_zip(bot_type)
-                content_type = 'application/zip'
-                filename = f"{bot_type}_dataset_collection.zip"
+            # Generate on-the-fly content with specified size
+            if requested_size:
+                # Generate content of requested size
+                if file_ext == 'pdf':
+                    content = self.generate_large_pdf(requested_size)
+                    content_type = 'application/pdf'
+                    filename = f"large_{bot_type}_dataset.pdf"
+                elif file_ext == 'csv':
+                    content = self.generate_large_csv(requested_size)
+                    content_type = 'text/csv'
+                    filename = f"large_{bot_type}_dataset.csv"
+                elif file_ext == 'json':
+                    content = self.generate_large_json(requested_size)
+                    content_type = 'application/json'
+                    filename = f"large_{bot_type}_dataset.json"
+                elif file_ext == 'zip':
+                    content = self.generate_large_zip(bot_type, requested_size)
+                    content_type = 'application/zip'
+                    filename = f"large_{bot_type}_dataset_collection.zip"
+                else:
+                    content = self.generate_large_text(bot_type, requested_size)
+                    content_type = 'text/plain'
+                    filename = f"large_{bot_type}_dataset.txt"
             else:
-                content = f"Fake data for {bot_type} bots\nGenerated: {datetime.now().isoformat()}\nKeywords: {', '.join(self.config_manager.active_config.keywords[:5])}"
-                content_type = 'text/plain'
-                filename = f"generated_{bot_type}_data.txt"
+                # Generate normal size content
+                if file_ext == 'pdf':
+                    content = self.bait_manager.generate_fake_pdf()
+                    content_type = 'application/pdf'
+                    filename = f"{bot_type}_dataset.pdf"
+                elif file_ext == 'csv':
+                    content = self.bait_manager.generate_fake_csv(rows=10000)  # More rows
+                    content_type = 'text/csv'
+                    filename = f"{bot_type}_dataset.csv"
+                elif file_ext == 'json':
+                    content = json.dumps(self.generate_large_dataset(bot_type), indent=2)
+                    content_type = 'application/json'
+                    filename = f"{bot_type}_dataset.json"
+                elif file_ext == 'xml':
+                    content = self.generate_large_xml(bot_type)
+                    content_type = 'application/xml'
+                    filename = f"{bot_type}_dataset.xml"
+                elif file_ext == 'zip':
+                    content = self.generate_large_zip(bot_type, 50 * 1024 * 1024)  # 50MB default
+                    content_type = 'application/zip'
+                    filename = f"{bot_type}_dataset_collection.zip"
+                else:
+                    content = self.generate_large_text(bot_type, 10 * 1024 * 1024)  # 10MB default
+                    content_type = 'text/plain'
+                    filename = f"{bot_type}_dataset.txt"
         else:
             # Serve existing bait file
             try:
@@ -1971,6 +2574,15 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
             self.control_panel.stats["downloads"] = self.control_panel.stats.get("downloads", 0) + 1
             self.control_panel.stats.setdefault("downloads_by_type", Counter())[bot_type] += 1
         
+        # Log the download
+        size_mb = len(content) / (1024 * 1024)
+        logger.info(f"Served {filename} ({size_mb:.2f} MB) to {bot_type} bot")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} downloading {filename} ({size_mb:.2f} MB)")
+        
+        # Add artificial delay based on file size (waste bot time)
+        delay_seconds = min(size_mb * 0.01, 5.0)  # 0.01 seconds per MB, max 5 seconds
+        time.sleep(delay_seconds)
+        
         # Send file
         self.send_response(200)
         self.send_header('Content-Type', content_type)
@@ -1986,52 +2598,262 @@ class InteractiveTarPitHandler(BaseHTTPRequestHandler):
                 pass
         else:
             try:
-                self.wfile.write(content)
+                # Write in chunks to simulate slow download
+                chunk_size = 1024 * 1024  # 1MB chunks
+                for i in range(0, len(content), chunk_size):
+                    chunk = content[i:i + chunk_size]
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+                    # Small delay between chunks
+                    time.sleep(0.01)
             except BrokenPipeError:
                 # Client disconnected before we could send response
                 pass
-        
-        logger.info(f"Download served: {filename} to {bot_type} bot")
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} downloaded {filename}")
     
-    def generate_fake_zip(self, bot_type: str) -> bytes:
-        """Generate a fake ZIP file with multiple bait files"""
+    def generate_large_pdf(self, target_size: int) -> bytes:
+        """Generate a large PDF file"""
+        # Start with basic PDF structure
+        pdf_content = b"""%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+
+4 0 obj
+<< /Length 100 >>
+stream
+BT
+/F1 12 Tf
+50 700 Td
+(LARGE DATASET PDF - GENERATED FOR RESEARCH) Tj
+50 680 Td
+(This document contains algorithmically generated content.) Tj
+50 660 Td
+(File size artificially inflated for bot trapping.) Tj
+ET
+endstream
+endobj
+
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+"""
+        
+        # Add filler content to reach target size
+        filler = b"A" * (target_size - len(pdf_content) - 200)  # Leave room for footer
+        pdf_content += filler
+        
+        # Add footer
+        pdf_content += b"""
+xref
+0 6
+0000000000 65535 f 
+0000000010 00000 n 
+0000000053 00000 n 
+0000000101 00000 n 
+0000000220 00000 n 
+0000000468 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+""" + str(len(pdf_content)).encode() + b"""
+%%EOF"""
+        
+        return pdf_content
+    
+    def generate_large_csv(self, target_size: int) -> str:
+        """Generate large CSV content"""
+        headers = ["id", "timestamp", "value", "category", "metadata", "score", "flag", "data"]
+        lines = [",".join(headers)]
+        
+        # Generate rows until we reach target size
+        current_size = len(lines[0])
+        row_count = 0
+        
+        while current_size < target_size:
+            row = [
+                str(row_count),
+                datetime.now().isoformat(),
+                str(random.random() * 1000),
+                random.choice(["A", "B", "C", "D", "E"]),
+                json.dumps({"tag": random.randint(1, 100), "active": random.choice([True, False])}),
+                str(random.randint(0, 100)),
+                random.choice(["true", "false"]),
+                "x" * 100  # Add some padding
+            ]
+            line = ",".join(row)
+            lines.append(line)
+            current_size += len(line) + 1  # +1 for newline
+            row_count += 1
+            
+            if row_count % 1000 == 0:
+                # Add some variety
+                lines.append("#" + "="*50 + f" Section {row_count//1000} " + "="*50)
+        
+        return "\n".join(lines)
+    
+    def generate_large_json(self, target_size: int) -> str:
+        """Generate large JSON content"""
+        dataset = {
+            "metadata": {
+                "generated_at": datetime.now().isoformat(),
+                "total_records": 0,
+                "size_bytes": target_size,
+                "format": "json",
+                "version": "2.0"
+            },
+            "records": []
+        }
+        
+        # Generate records until we reach target size
+        current_size = len(json.dumps(dataset))
+        record_count = 0
+        
+        while current_size < target_size:
+            record = {
+                "id": record_count,
+                "data": {
+                    "field1": "x" * 100,
+                    "field2": random.randint(1, 1000),
+                    "field3": random.random(),
+                    "field4": random.choice([True, False]),
+                    "field5": {
+                        "nested": "y" * 50,
+                        "value": random.randint(1000, 9999)
+                    }
+                },
+                "timestamp": datetime.now().isoformat(),
+                "tags": [random.choice(["tag1", "tag2", "tag3", "tag4"]) for _ in range(3)]
+            }
+            
+            dataset["records"].append(record)
+            dataset["metadata"]["total_records"] = record_count + 1
+            
+            # Update current size
+            current_size = len(json.dumps(dataset))
+            record_count += 1
+            
+            if record_count % 100 == 0:
+                # Add some metadata records
+                dataset["records"].append({
+                    "type": "metadata",
+                    "batch": record_count // 100,
+                    "size": current_size
+                })
+        
+        return json.dumps(dataset, indent=2)
+    
+    def generate_large_dataset(self, bot_type: str) -> Dict:
+        """Generate a large dataset for JSON response"""
+        keywords = self.config_manager.active_config.keywords
+        
+        return {
+            "status": "success",
+            "bot_type": bot_type,
+            "data": {
+                "datasets": [{
+                    "id": i,
+                    "name": f"{random.choice(keywords)} Dataset v{i+1}",
+                    "description": f"Comprehensive dataset for {random.choice(keywords)} analysis",
+                    "size": f"{random.randint(10, 500)} MB",
+                    "records": random.randint(1000, 100000),
+                    "format": random.choice(["CSV", "JSON", "XML"]),
+                    "download_url": f"/download/{bot_type}/dataset_{i}.zip",
+                    "api_endpoint": f"/api/v1/datasets/{i}"
+                } for i in range(100)],
+                "statistics": {
+                    "total_datasets": 100,
+                    "total_size": f"{random.randint(10, 50)} GB",
+                    "total_records": f"{random.randint(1000000, 10000000):,}",
+                    "last_updated": datetime.now().isoformat()
+                }
+            },
+            "generated_at": datetime.now().isoformat()
+        }
+    
+    def generate_large_xml(self, bot_type: str) -> str:
+        """Generate large XML content"""
+        root = ET.Element("dataset_collection")
+        root.set("bot_type", bot_type)
+        root.set("generated", datetime.now().isoformat())
+        root.set("version", "1.0")
+        
+        # Add lots of items
+        for i in range(1000):
+            item = ET.SubElement(root, "item")
+            ET.SubElement(item, "id").text = str(i)
+            ET.SubElement(item, "name").text = f"Dataset Item {i}"
+            ET.SubElement(item, "value").text = str(random.random() * 1000)
+            ET.SubElement(item, "timestamp").text = datetime.now().isoformat()
+            ET.SubElement(item, "data").text = "x" * 100
+        
+        return ET.tostring(root, encoding="unicode", method="xml")
+    
+    def generate_large_zip(self, bot_type: str, target_size: int) -> bytes:
+        """Generate a large ZIP file with multiple fake files"""
         zip_buffer = io.BytesIO()
         
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            # Add CSV
-            csv_content = self.bait_manager.generate_fake_csv(rows=100)
-            zip_file.writestr(f"{bot_type}_users.csv", csv_content)
+            # Add multiple files
+            file_count = 0
+            total_size = 0
             
-            # Add JSON
-            json_content = json.dumps(self.bait_manager.generate_fake_json(), indent=2)
-            zip_file.writestr(f"{bot_type}_data.json", json_content)
-            
-            # Add README
-            readme = f"""# {bot_type.upper()} Dataset Collection
-Generated: {datetime.now().isoformat()}
-Purpose: Research and analysis
-Files: {bot_type}_users.csv, {bot_type}_data.json, {bot_type}_metadata.txt
-
-This dataset contains algorithmically generated data for research purposes.
-All content is synthetic and does not represent real information.
-"""
-            zip_file.writestr("README.txt", readme)
-            
-            # Add metadata
-            metadata = {
-                "generated_at": datetime.now().isoformat(),
-                "bot_type": bot_type,
-                "file_count": 3,
-                "data_type": "synthetic",
-                "keywords": self.config_manager.active_config.keywords[:10]
-            }
-            zip_file.writestr(f"{bot_type}_metadata.json", json.dumps(metadata, indent=2))
+            while total_size < target_size:
+                file_count += 1
+                
+                # Create different types of files
+                if file_count % 3 == 0:
+                    # CSV file
+                    content = self.generate_large_csv(min(10 * 1024 * 1024, target_size - total_size))
+                    filename = f"dataset_{file_count}.csv"
+                elif file_count % 3 == 1:
+                    # JSON file
+                    content = json.dumps(self.generate_large_dataset(bot_type), indent=2)
+                    filename = f"dataset_{file_count}.json"
+                else:
+                    # Text file
+                    content = "x" * min(5 * 1024 * 1024, target_size - total_size)
+                    filename = f"dataset_{file_count}.txt"
+                
+                zip_file.writestr(filename, content)
+                total_size += len(content)
         
         return zip_buffer.getvalue()
     
+    def generate_large_text(self, bot_type: str, target_size: int) -> str:
+        """Generate large text content"""
+        lines = []
+        keywords = self.config_manager.active_config.keywords
+        
+        # Header
+        lines.append(f"# {bot_type.upper()} DATASET")
+        lines.append(f"# Generated: {datetime.now().isoformat()}")
+        lines.append(f"# Target size: {target_size} bytes")
+        lines.append("=" * 80)
+        
+        # Generate content
+        current_size = sum(len(line) + 1 for line in lines)  # +1 for newline
+        
+        while current_size < target_size:
+            keyword = random.choice(keywords)
+            line = f"DATA:{keyword}:{datetime.now().isoformat()}:{random.random()}:{random.randint(1, 1000)}:" + "x" * 50
+            lines.append(line)
+            current_size += len(line) + 1
+            
+            if len(lines) % 100 == 0:
+                lines.append(f"# Batch {len(lines)//100} - {current_size}/{target_size} bytes")
+        
+        return "\n".join(lines)
+    
     def handle_api(self, bot_type: str, is_bot: bool):
-        """Handle API requests"""
+        """Handle API requests - ENHANCED"""
         api_path = self.path[5:]  # Remove '/api/'
         
         if api_path == 'status':
@@ -2046,18 +2868,24 @@ All content is synthetic and does not represent real information.
             self.handle_tracking(bot_type)
         elif api_path == 'subscribe':
             self.handle_subscription(bot_type)
+        elif api_path == 'ping':
+            self.handle_ping(bot_type)
         else:
+            # Generic API response
             self.send_json_response({
-                "error": "Invalid API endpoint",
-                "available_endpoints": ["/api/data", "/api/analytics", "/api/status", "/api/ngrok", "/api/track", "/api/subscribe"],
-                "timestamp": datetime.now().isoformat()
+                "api": api_path,
+                "status": "active",
+                "endpoints": ["/api/data", "/api/analytics", "/api/status", "/api/track", "/api/subscribe"],
+                "timestamp": datetime.now().isoformat(),
+                "rate_limit": {"remaining": random.randint(100, 1000), "reset": int(time.time()) + 3600}
             })
     
     def handle_tracking(self, bot_type: str):
         """Handle bot interaction tracking"""
         content_length = int(self.headers.get('Content-Length', 0))
-        if content_length > 0:
-            try:
+        
+        try:
+            if content_length > 0:
                 post_data = self.rfile.read(content_length)
                 tracking_data = json.loads(post_data.decode('utf-8'))
                 
@@ -2067,36 +2895,63 @@ All content is synthetic and does not represent real information.
                     
                     # Log the interaction
                     action = tracking_data.get('action', 'unknown')
-                    print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} interaction: {action}")
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} tracking: {action}")
                     
                     # Track specific actions
                     if 'download' in action.lower():
                         self.control_panel.stats["downloads"] = self.control_panel.stats.get("downloads", 0) + 1
                         print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} triggered download")
+                    
+                    # Count keywords if present
+                    if 'keywords' in tracking_data:
+                        keywords = tracking_data.get('keywords', [])
+                        if isinstance(keywords, list):
+                            for keyword in keywords:
+                                self.control_panel.stats["keywords_triggered"][keyword] += 1
                 
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                try:
-                    self.wfile.write(json.dumps({"status": "tracked"}).encode('utf-8'))
-                except BrokenPipeError:
-                    # Client disconnected before we could send response
-                    pass
-                return
-            except:
-                pass
+        except Exception as e:
+            logger.error(f"Tracking error: {e}")
         
+        # Always respond with success
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         try:
-            self.wfile.write(json.dumps({"status": "received"}).encode('utf-8'))
+            self.wfile.write(json.dumps({"status": "tracked", "timestamp": datetime.now().isoformat()}).encode('utf-8'))
         except BrokenPipeError:
-            # Client disconnected before we could send response
+            pass
+    
+    def handle_ping(self, bot_type: str):
+        """Handle ping requests"""
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        
+        response = {
+            "status": "online",
+            "server_time": datetime.now().isoformat(),
+            "uptime": random.randint(100, 10000),
+            "bot_type": bot_type,
+            "endpoints": ["/api/data", "/api/status", "/download"]
+        }
+        
+        try:
+            self.wfile.write(json.dumps(response).encode('utf-8'))
+        except BrokenPipeError:
             pass
     
     def handle_subscription(self, bot_type: str):
         """Handle fake subscription form"""
+        content_length = int(self.headers.get('Content-Length', 0))
+        subscription_data = {}
+        
+        if content_length > 0:
+            try:
+                post_data = self.rfile.read(content_length)
+                subscription_data = json.loads(post_data.decode('utf-8'))
+            except:
+                pass
+        
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
@@ -2104,21 +2959,24 @@ All content is synthetic and does not represent real information.
         response = {
             "status": "subscribed",
             "message": "Thank you for subscribing! Download links are being prepared.",
+            "subscription_id": f"SUB{random.randint(10000, 99999)}",
             "downloads": [
-                f"/download/{bot_type}/premium_dataset.zip",
-                f"/download/{bot_type}/research_papers.zip",
-                f"/download/{bot_type}/user_data.csv"
-            ]
+                f"/download/{bot_type}/premium_dataset.zip?size=250mb",
+                f"/download/{bot_type}/research_papers.zip?size=150mb",
+                f"/download/{bot_type}/user_data.csv?size=100mb"
+            ],
+            "api_key": hashlib.md5(f"{bot_type}_{time.time()}".encode()).hexdigest()[:32],
+            "expires": (datetime.now() + timedelta(days=30)).isoformat()
         }
         
         try:
             self.wfile.write(json.dumps(response).encode('utf-8'))
         except BrokenPipeError:
-            # Client disconnected before we could send response
             pass
         
         # Log the subscription
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} submitted subscription form")
+        email = subscription_data.get('email', 'unknown')
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] {bot_type.upper()} subscribed: {email}")
         if self.control_panel:
             self.control_panel.stats["interactions"] = self.control_panel.stats.get("interactions", 0) + 1
     
@@ -2128,6 +2986,11 @@ All content is synthetic and does not represent real information.
         response = {
             "status": "running",
             "timestamp": datetime.now().isoformat(),
+            "server_info": {
+                "uptime": random.randint(100, 10000),
+                "memory": f"{random.randint(100, 1000)} MB",
+                "requests_per_second": random.randint(1, 100)
+            },
             "stats": {
                 "total_requests": stats.get("total_requests", 0),
                 "bot_requests": stats.get("bot_requests", 0),
@@ -2136,6 +2999,11 @@ All content is synthetic and does not represent real information.
                 "interactions": stats.get("interactions", 0),
                 "bot_types_detected": dict(stats.get("bot_types_detected", {})),
                 "last_request": stats.get("last_request", "None")
+            },
+            "config": {
+                "bot_types": self.config_manager.active_config.bot_types,
+                "keywords": self.config_manager.active_config.keywords[:10],
+                "traps_active": True
             }
         }
         
@@ -2149,7 +3017,9 @@ All content is synthetic and does not represent real information.
                 "public_url": self.ngrok_manager.public_url,
                 "local_url": f"http://localhost:{self.server.server_port}",
                 "protocol": "http",
-                "started": datetime.fromtimestamp(self.ngrok_manager.tunnel_start_time).isoformat() if self.ngrok_manager.tunnel_start_time else None
+                "started": datetime.fromtimestamp(self.ngrok_manager.tunnel_start_time).isoformat() if self.ngrok_manager.tunnel_start_time else None,
+                "region": self.ngrok_manager.region,
+                "requests_today": random.randint(100, 10000)
             }
         else:
             response = {
@@ -2161,25 +3031,31 @@ All content is synthetic and does not represent real information.
     
     def send_api_response(self, bot_type: str):
         """Send fake API response"""
+        # Add delay to simulate API processing
+        time.sleep(random.uniform(0.1, 1.0))
+        
         response = {
             "status": "success",
             "bot_type": bot_type,
             "data": {
                 "items": [{
                     "id": i,
-                    "title": f"Generated Item {i}",
-                    "content": f"This is fake content for {bot_type} bots",
+                    "title": f"Dataset Item {i}",
+                    "content": f"Sample data for {random.choice(self.config_manager.active_config.keywords)} analysis",
                     "keywords": random.sample(self.config_manager.active_config.keywords, 3),
-                    "created_at": (datetime.now() - timedelta(days=random.randint(0, 30))).isoformat()
+                    "created_at": (datetime.now() - timedelta(days=random.randint(0, 30))).isoformat(),
+                    "size": f"{random.randint(1, 100)} MB",
+                    "download_url": f"/download/{bot_type}/item_{i}.json"
                 } for i in range(random.randint(10, 50))],
                 "pagination": {
                     "page": 1,
                     "total_pages": random.randint(10, 100),
+                    "total_items": random.randint(100, 5000),
                     "next_page": f"/api/data?page=2&bot_type={bot_type}"
                 }
             },
             "generated_at": datetime.now().isoformat(),
-            "download_url": f"/download/{bot_type}/full_dataset.zip"
+            "download_url": f"/download/{bot_type}/full_dataset.zip?size={random.randint(50, 500)}mb"
         }
         
         self.send_json_response(response)
@@ -2193,13 +3069,21 @@ All content is synthetic and does not represent real information.
                 "unique_visitors": random.randint(100, 1000),
                 "popular_keywords": random.sample(self.config_manager.active_config.keywords, 5),
                 "downloads": random.randint(50, 500),
-                "avg_session_duration": f"{random.randint(1, 10)}m {random.randint(0, 59)}s"
+                "avg_session_duration": f"{random.randint(1, 10)}m {random.randint(0, 59)}s",
+                "bounce_rate": f"{random.randint(30, 80)}%",
+                "top_pages": [
+                    {"page": "/", "views": random.randint(100, 1000)},
+                    {"page": "/data/", "views": random.randint(50, 500)},
+                    {"page": f"/download/{bot_type}/", "views": random.randint(20, 200)}
+                ]
             },
             "recommendations": [
                 f"Increase {random.choice(self.config_manager.active_config.keywords)} content",
                 "Add more interactive elements",
-                "Generate additional dataset variations"
-            ]
+                "Generate additional dataset variations",
+                "Optimize for {bot_type} crawling patterns"
+            ],
+            "generated_at": datetime.now().isoformat()
         }
         
         self.send_json_response(response)
@@ -2215,7 +3099,6 @@ All content is synthetic and does not represent real information.
         try:
             self.wfile.write(response.encode('utf-8'))
         except BrokenPipeError:
-            # Client disconnected before we could send response
             pass
     
     def handle_upload_page(self):
@@ -2451,7 +3334,6 @@ All content is synthetic and does not represent real information.
         try:
             self.wfile.write(html.encode('utf-8'))
         except BrokenPipeError:
-            # Client disconnected before we could send response
             pass
     
     def handle_file_upload(self, post_data: bytes):
@@ -2541,7 +3423,6 @@ All content is synthetic and does not represent real information.
             try:
                 self.wfile.write(json.dumps(response).encode('utf-8'))
             except BrokenPipeError:
-                # Client disconnected before we could send response
                 pass
             
             logger.info(f"Uploaded {len(files)} bait files")
@@ -2679,7 +3560,6 @@ All content is synthetic and does not represent real information.
         try:
             self.wfile.write(html.encode('utf-8'))
         except BrokenPipeError:
-            # Client disconnected before we could send response
             pass
     
     def handle_ngrok_info(self):
@@ -2767,7 +3647,6 @@ All content is synthetic and does not represent real information.
         try:
             self.wfile.write(html.encode('utf-8'))
         except BrokenPipeError:
-            # Client disconnected before we could send response
             pass
     
     def handle_test_page(self):
@@ -2865,7 +3744,6 @@ All content is synthetic and does not represent real information.
         try:
             self.wfile.write(html.encode('utf-8'))
         except BrokenPipeError:
-            # Client disconnected before we could send response
             pass
     
     def get_mime_type(self, filename: str) -> str:
