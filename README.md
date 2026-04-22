@@ -11,8 +11,9 @@
 
 ---
 
+<p align="center">
 <img width="580" height="193" alt="IMG_2975(1)" src="https://github.com/user-attachments/assets/5612cf9c-0e97-4dbe-942d-c2e8569f4096" />
-
+</p>
 
 ### Infinite Traps
 - Meta refresh loops – bots never leave the first page
