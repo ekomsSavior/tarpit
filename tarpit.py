@@ -2842,7 +2842,7 @@ def main():
     print("INTERACTIVE AI SCRAPER TAR PIT WITH NGrok")
     print("="*70)
     print("!!!TARPIT!!!")
-    print("by: ek0ms savi0r of the churchofmalware.org")
+    print("by: ek0ms savi0r")
     print("Educational use only")
     print("="*70)
     if args.default:
