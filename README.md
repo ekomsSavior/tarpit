@@ -571,5 +571,5 @@ http://localhost:8080/upload/
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Certified%20Ethical%20Hacker-blueviolet" alt="Hack The Planet">
+  <img src="https://img.shields.io/badge/HACK%20THE%20PLANET-black" alt="Hack The Planet">
 </p>
