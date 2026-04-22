@@ -406,33 +406,6 @@ Monitoring active. Bot interactions will appear below:
 
 ---
 
-## Use Cases
-
-### Academic Research
-- Study interactive bot behavior patterns
-- Analyze download and interaction patterns
-- Research AI training data collection methods
-- Measure bandwidth waste effectiveness
-
-### Security Testing
-- Test systems against interactive scraping
-- Understand bot interaction patterns
-- Develop countermeasures for modern scrapers
-- Analyze bot resource consumption
-
-### Content Protection
-- Protect proprietary content from being scraped
-- Waste resources of unethical scrapers with interactive traps
-- Generate fake interactive datasets to poison training data
-- Measure effectiveness of different trap types
-
-### Remote Testing
-- Test bot interactions from different geographical locations
-- Share tar pit access with research collaborators
-- Monitor bots accessing via public internet
-- Compare local vs public bot behavior
-
----
 
 ## Quick Start Guide
 
