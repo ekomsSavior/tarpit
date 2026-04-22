@@ -2,7 +2,7 @@
 # AI Scraper TarPit
 
 <p align="center">
-  <img src="https://img.shields.io/badge/ek0ms%20savi0r-yellow.svg" alt="ek0ms_savi0r">
+  <img src="https://img.shields.io/badge/ek0ms%20savi0r-black.svg" alt="ek0ms_savi0r">
 </p>
 
 <p align="center">
@@ -11,7 +11,8 @@
 
 ---
 
-## Key Features
+<img width="580" height="193" alt="IMG_2975(1)" src="https://github.com/user-attachments/assets/5612cf9c-0e97-4dbe-942d-c2e8569f4096" />
+
 
 ### Infinite Traps
 - Meta refresh loops – bots never leave the first page
@@ -84,7 +85,9 @@ This tool should only be used:
 
 ---
 
-## Features
+<img width="586" height="676" alt="IMG_2975" src="https://github.com/user-attachments/assets/855f54c5-0dc2-4f0c-a9b7-e32cfc864b36" />
+# Features
+
 
 ### Targeted Bot Attraction
 - Keyword‑based targeting – Customize content to attract specific bot types
