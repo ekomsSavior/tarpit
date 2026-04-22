@@ -1,5 +1,9 @@
 <p align="center">
-  <em>TARPIT : AI SCRAPER TARPIT/HONEYPOT</em>
+<img width="580" height="193" alt="IMG_2975(1)" src="https://github.com/user-attachments/assets/5612cf9c-0e97-4dbe-942d-c2e8569f4096" />
+</p>
+
+<p align="center">
+  <em>AI SCRAPER TARPIT</em>
 </p>
 
 
@@ -12,10 +16,6 @@
 </p>
 
 ---
-
-<p align="center">
-<img width="580" height="193" alt="IMG_2975(1)" src="https://github.com/user-attachments/assets/5612cf9c-0e97-4dbe-942d-c2e8569f4096" />
-</p>
 
 ### Infinite Traps
 - Meta refresh loops – bots never leave the first page
@@ -562,6 +562,9 @@ http://localhost:8080/upload/
 - [ngrok Documentation](https://ngrok.com/docs)
 
 ---
+<p align="center">
+<img width="580" height="193" alt="IMG_2975(1)" src="https://github.com/user-attachments/assets/5612cf9c-0e97-4dbe-942d-c2e8569f4096" />
+</p>
 
 <p align="center">
   <strong>by ek0mssavi0r.dev</strong><br>
