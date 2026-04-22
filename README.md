@@ -1,5 +1,7 @@
-## TARPIT
-# AI Scraper TarPit
+<p align="center">
+  <em>TARPIT : AI SCRAPER TARPIT/HONEYPOT</em>
+</p>
+
 
 <p align="center">
   <img src="https://img.shields.io/badge/ek0ms%20savi0r-black.svg" alt="ek0ms_savi0r">
